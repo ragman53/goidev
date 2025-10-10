@@ -16,10 +16,11 @@ Purpose: Canonical spec for building a local-first PDF reader with vocabulary ca
 | - pdf_parser (lopdf)                 |
 | - reflow_engine (heuristics)         |
 | - ai_processor (Candle + SLM, opt.)  |
-| - nlp_engine (nlprule, rust-stemmers)|
+| - nlp_engine (unicode_segmentation,  |
+|                      waken_snowball) |
 | - storage_layer (rusqlite)           |
 +--------------------------------------+
-```
+```f
 
 ## 1. Core Goals (MVP)
 
@@ -72,8 +73,8 @@ edition = "2021"
 [dependencies]
 lopdf = "0.32"          # PDF parsing
 rusqlite = { version = "0.32", features = ["bundled"] } # SQLite
-nlprule = "0.8"         # Sentence segmentation
-rust-stemmers = "0.2"   # Word normalization
+unicode_segmentation = "1.12"         # Sentence segmentation
+waken_snowball = "0.1"   # Word normalization
 serde = { version = "1.0", features = ["derive"] } # JSON
 uuid = { version = "1.10", features = ["v4"] } # UUIDs
 tokio = { version = "1.40", features = ["rt", "fs"] } # Async
@@ -289,7 +290,7 @@ Copilot Prompt:
 
 ### 6.4 nlp_engine.rs
 
-Purpose: Segment sentences (nlprule), normalize words (rust-stemmers).
+Purpose: Segment sentences (unicode_segmentation), normalize words (waken_snowball).
 Key Logic: Find first-match sentence; stem to base_form.
 
 Copilot Prompt:
