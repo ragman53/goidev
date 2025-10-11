@@ -71,14 +71,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-lopdf = "0.32"          # PDF parsing
-rusqlite = { version = "0.32", features = ["bundled"] } # SQLite
+lopdf = "0.38"          # PDF parsing
+rusqlite = { version = "0.37", features = ["bundled"] } # SQLite
 unicode_segmentation = "1.12"         # Sentence segmentation
-waken_snowball = "0.1"   # Word normalization
+waken_snowball = "0.1"   # Word normalization (replaced rust-stemmers)
 serde = { version = "1.0", features = ["derive"] } # JSON
-uuid = { version = "1.10", features = ["v4"] } # UUIDs
-tokio = { version = "1.40", features = ["rt", "fs"] } # Async
-candle-core = { version = "0.7", optional = true } # Optional AI
+uuid = { version = "1.11", features = ["v4"] } # UUIDs
+tokio = { version = "1.41", features = ["rt", "fs"] } # Async
+candle-core = { version = "0.8", optional = true } # Optional AI
 log = "0.4"             # Logging
 env_logger = "0.11"     # Logging setup
 pdfium-render = "0.8"   # Image fallback rendering
@@ -90,11 +90,11 @@ pdfium-render = "0.8"   # Image fallback rendering
 [package]
 name = "dioxus-ui"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-dioxus = { version = "0.5", features = ["desktop", "web"] } # Desktop + WASM
-dioxus-logger = "0.5"   # Logging
+dioxus = { version = "0.6", features = ["desktop", "web"] } # Desktop + WASM
+dioxus-logger = "0.6"   # Logging
 serde = { version = "1.0", features = ["derive"] } # JSON
 serde_json = "1.0"      # JSON parsing
 goidev-core = { path = "../goidev-core" } # Backend crate
@@ -110,7 +110,7 @@ cd dioxus-ui
 cargo add dioxus --features desktop,web
 cargo add dioxus-logger serde serde_json goidev-core --path ../goidev-core
 cd ../goidev-core
-cargo add lopdf rusqlite --features bundled nlprule rust-stemmers serde --features derive uuid --features v4 tokio --features rt,fs candle-core --optional log env_logger pdfium-render
+cargo add lopdf rusqlite --features bundled rust-stemmers serde --features derive uuid --features v4 tokio --features rt,fs candle-core --optional log env_logger pdfium-render
 # Install dioxus-cli for dev
 cargo install dioxus-cli
 # Run desktop
@@ -286,6 +286,13 @@ Copilot Prompt:
 //   // Return corrected text and confidence score
 //   // Fallback to original text with 0.9 confidence if disabled
 // }
+
+// ai_processor.rs
+  //pub async fn generate_definition(word: &str, context_sentence: &str, enable_ai: bool) -> Result<(String, f32), String> {
+      // If enable_ai: run Candle or local model to produce a concise definition scoped to the sentence.
+      // Return (definition_text, confidence_score).
+      // If disabled or model missing: return ("", 0.0) or a short fallback.
+  //}
 ```
 
 ### 6.4 nlp_engine.rs
@@ -299,8 +306,8 @@ Copilot Prompt:
 // nlp_engine.rs
 // Generate a function process_selection(word: String, block_text: String) -> Result<(String, String), String> {
 //   // Clean word (trim, lowercase, strip punctuation)
-//   // Stem with rust-stemmers to get base_form
-//   // Use nlprule to segment block_text and find first sentence containing word
+//   // Stem with waken_snowball to get base_form
+//   // Use unicode_segmentation to segment block_text and find first sentence containing word
 //   // Return (base_form, sentence)
 // }
 ```
