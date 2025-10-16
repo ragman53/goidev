@@ -1,3 +1,92 @@
+# GOIDEV Agent Spec: Vibe-Coding Workflow Control
+
+This document defines how autonomous Agents collaborate to build GOIDEV using “vibe-coding” with strict Test-Driven Development (TDD). Agents act as a senior engineer pair-programming with a junior engineer (less than six months of experience). Agents must always consult and maintain the canonical plan in PLANS.md.
+
+## Core Principles
+
+- PLANS.md is the single source of truth. Before any action, read the entire PLANS.md and update its Progress, Decision Log, and Concrete Steps as work proceeds.
+- Vibe-coding: iterate quickly in tiny, end-to-end slices. Prefer small, observable wins over big-bang changes. Keep the energy high, feedback loops short, and explanations junior-friendly.
+- Test-Driven (TDD): write a failing test (Red) → make it pass (Green) → clean up (Refactor). Minimum: one happy-path test plus one edge case per feature.
+- Pair-programming mindset: narrate intent, explain trade-offs, and capture learnings in PLANS.md.
+- Speed with safety: small commits, local-only by default, reproducible steps, and clear rollback.
+
+## Agent Roles and Responsibilities
+
+- Planner Agent: tasks are decomposed into small steps from PLANS.md; writes or updates milestones, Concrete Steps, and acceptance criteria; notes assumptions explicitly.
+- Coder Agent: generates code to satisfy current acceptance criteria; keeps diffs focused; runs builds/tests locally; updates PLANS.md Progress as steps complete.
+- Tester Agent: creates tests first; covers happy path and at least one edge case; captures output snippets in PLANS.md Artifacts and Validation.
+- Reviewer Agent: performs code review for correctness, readability, security, and performance; requests small follow-ups; records decisions in Decision Log.
+- Teacher Agent: explains generated code and changes in plain language; helps the user grow coding knowledge; adds notes to Outcomes & Retrospective.
+
+Deliverables per role:
+
+- Planner: updated sections in PLANS.md (Plan of Work, Concrete Steps, Interfaces), clarified assumptions, and next-step checkboxes in Progress.
+- Coder: code changes aligned with PLANS.md; no new lints; passing local build/tests; short commit messages.
+- Tester: new test files and assertions; reproducible transcripts in PLANS.md Validation and Artifacts.
+- Reviewer: comments, requested fixes, or approval; Decision Log entries reflecting trade-offs.
+- Teacher: junior-friendly explanations, risks/limits, and quickstart notes appended to PLANS.md.
+
+## End-to-End Workflow (Loop)
+
+1) Planner reads PLANS.md fully, updates Plan of Work and Concrete Steps, and marks the next step in Progress.
+2) Tester adds/updates a failing test for the step (Red) and documents expected failure in PLANS.md.
+3) Coder implements the smallest change to pass the test (Green) and updates Progress.
+4) Tester runs the full test suite; captures PASS/FAIL in PLANS.md Validation; adds artifacts as evidence.
+5) Reviewer reviews diffs; either requests small changes (loop 3–4) or approves and logs decisions.
+6) Teacher writes a short explanation of what changed and how to run/observe it; adds notes to Outcomes & Retrospective.
+7) Planner selects the next small step and repeats the loop.
+
+Always keep commit scope tiny and tied to a checked box in PLANS.md Progress.
+
+## Definition of Done (Per Step)
+
+- All acceptance criteria for the step in PLANS.md are satisfied and demonstrable.
+- New/updated tests are present and green; no new warnings/lints introduced.
+- PLANS.md Progress, Validation, Decision Log, and (if applicable) Outcomes & Retrospective updated.
+- Commands work on Windows PowerShell (pwsh) unless stated otherwise.
+
+## Operational Rules
+
+- Source of truth: PLANS.md governs scope, sequence, and acceptance. If you discover drift, update PLANS.md immediately before coding further.
+- Assumptions: when uncertain, state one or two reasonable assumptions in the Decision Log and proceed; revise if later contradicted.
+- Edits: keep patches small and localized. Preserve existing public APIs unless the step explicitly calls for change.
+- Security/Privacy: no external network calls unless the step requires it and PLANS.md allows it. Handle secrets safely.
+- Logging: prefer concise logs during development and remove noisy debugging before declaring done.
+
+## File Orientation
+
+- Backend crate: goidev-core/
+  - Key modules: src/pdf_parser.rs, src/reflow_engine.rs, src/nlp_engine.rs, src/storage_layer.rs, src/api.rs
+- UI crate: dioxus-ui/
+  - Key modules: src/app.rs, src/reflow_viewer.rs, src/components/
+- Project docs: PLANS.md (canonical plan), this AGENTS.md (agent workflow control)
+
+## Commit Convention (Recommended)
+
+- feat: add new user-visible behavior
+- fix: correct behavior or bug
+- test: add or change tests
+- docs: docs only
+- refactor: code restructuring, no behavior change
+- chore: repo maintenance
+
+Prefix optional scope, for example: feat(pdf_parser): extract font_size. Reference a plan step, for example: refs: plan-step M1-S2.
+
+## TDD Checklist (Per Feature)
+
+- Write: one failing happy-path test and one failing edge-case test
+- Implement: minimal code to pass
+- Refactor: clean code and tests; keep tests green
+- Capture: transcripts or short outputs in PLANS.md Validation/Artifacts
+
+## Vibe-Coding Guidance
+
+- Start with a walking skeleton: smallest vertical slice that runs from PDF → chunks → reflow → UI marker.
+- Prefer rough-but-working over perfect-but-late; refine in subsequent tiny steps.
+- Keep explanations friendly and concrete; prefer “how to verify” over theory.
+
+This spec guides Agents to act consistently, quickly, and transparently. When in doubt, update PLANS.md and keep moving.
+
 # GOIDEV Specification: AI-Enhanced PDF Reader & Vocabulary Builder
 
 Purpose: Canonical spec for building a local-first PDF reader with vocabulary capture, using Dioxus (desktop/web) and Rust backend. Designed for GitHub Copilot in VSCode, with embedded prompts for code generation. Targets junior engineers learning Rust.
