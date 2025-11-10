@@ -11,5 +11,6 @@ dist/
 Thumbs.db
 
 # IDE
-.vscode/
+.gemini/
 .idea/
+.github/
