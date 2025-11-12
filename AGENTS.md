@@ -73,7 +73,7 @@ Four progressive modes build the "read → mirror → modify → create" muscle 
 ### Integration Rules
 
 - Planner declares the mode inside PLANS.md before work starts; TODO.md tasks inherit that mode tag.
-- Learner records key questions, comparisons, or diffs in PLANS.md Outcomes as **Vibe Reflection** notes.
+- Learner records key questions, comparisons, or diffs in LEARN.md Outcomes as **Vibe Reflection** notes.
 - Evidence (e.g., short diffs, compiler errors encountered) accompanies every completed learning step.
 - Never skip directly from Level 0 to Level 3; escalate one mode at a time.
 
@@ -104,7 +104,9 @@ Always keep commit scope minimal and tied to a checked box in PLANS.md Progress.
 - When uncertain, state assumptions in the Decision Log and proceed; revise as needed.
 - Keep changes small and preserve public APIs unless explicitly changing them.
 - No external network calls unless PLANS.md permits them. Handle secrets safely.
+- Agent conversation with the user will be in Japanese, while all code, comments, and documentation must be in English.
 - Remove noisy debug logging before marking a step done.
+- Write comments in English for all files.
 
 ## File Orientation
 

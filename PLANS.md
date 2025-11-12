@@ -28,6 +28,9 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 
 ## Outcomes & Retrospective
 
+- **M1 - Initial Implementation (2025-10-17)**: Successfully implemented a basic `parse_pdf` function using `lopdf::Document::extract_text`. This function passes the initial "happy path" test by returning a `Vec<TextChunk>` that is not empty. The current implementation uses dummy values for `bbox` and `font_size`, which will be addressed in the refactoring step. This completes the first "Red -> Green" cycle.
+  - **Vibe Reflection**: The `lopdf::extract_text` helper is a great way to get a quick win and validate the overall structure. It hides a lot of complexity, which is perfect for a first pass but insufficient for our final goal of getting detailed coordinates.
+
 - Populate after each milestone: what was achieved, verification steps, and remaining gaps.
 
 ## Data Contracts (Canonical)
@@ -76,6 +79,27 @@ Concrete steps:
 
 ## Integration with RAG/Markdown
 
+---
+
+## Acceptance & Verification (M1 example)
+
+- **Initial Happy Path Test (2025-10-17)**: PASSED
+  - **Run unit tests**:
+
+    ```shell
+    cd goidev-core
+    cargo test -- --nocapture
+    ```
+
+  - **Output**:
+
+    ```c
+    running 1 test
+    test tests::pdf_parser_test::test_extract_text_simple_happy_path ... ok
+    
+    test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+    ```
+
 - Keep structured outputs (TextChunk → Block) as canonical.
 - Add deterministic to_markdown(blocks: &[Block]) -> String exporter to produce consistent Markdown for RAG/LLM ingestion.
 - Persist both canonical structure and Markdown to storage for retrieval.
@@ -91,15 +115,6 @@ Concrete steps:
 - Each milestone lists the active learning mode; update it when the team escalates (L0 → L1 → L2 → L3).
 - When the mode changes, add a brief note to Progress and the Decision Log summarizing why the shift happened.
 - Capture Learner reflections in Outcomes & Retrospective with the tag **Vibe Reflection**.
-
-## Acceptance & Verification (M1 example)
-
-- Run unit tests:
-  - cd goidev-core
-  - cargo test -- --nocapture
-- Manual check:
-  - Provide sample.pdf in tests/resources
-  - Run small CLI/test harness to print TextChunks and inspect bbox/font_size
 
 ## Next Steps (after M1)
 

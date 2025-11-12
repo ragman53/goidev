@@ -18,7 +18,8 @@ Examples
 Current Tasks
 
 - [x] Explain `.github/references/pdf` parser components — refs: M1 mode: L0
-- [ ] Implement `goidev-core/src/pdf_parser.rs` MVP and tests — refs: M1 mode: L0 #high
-- [ ] Update PLANS.md with test evidence after parser implementation — refs: M1 mode: L0
+- [>] Implement `goidev-core/src/pdf_parser.rs` MVP and tests — refs: M1 mode: L0 #high
+- [x] Update PLANS.md with test evidence after parser implementation — refs: M1 mode: L0
+- [ ] feat(pdf_parser): Refactor to extract real bbox and font_size — refs: M1 mode: L0 #high
 
 Keep TODO.md concise and actionable.
