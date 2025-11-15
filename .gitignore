@@ -11,6 +11,6 @@ dist/
 Thumbs.db
 
 # IDE
-.gemini/
+.gemini/references/
 .idea/
 .github/

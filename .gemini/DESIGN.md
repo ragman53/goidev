@@ -225,22 +225,32 @@ Copilot Prompt:
 
 ```rust
 // pdf_parser.rs
-pub struct TextChunk {
-    text: String,
-    bbox: BBox,
-    font_size: f32,
+
+/// Represents a bounding box for a text chunk or line.
+/// Coordinates are in PDF points (1/72 inch), with the origin at the bottom-left of the page.
+pub struct BBox { x: f32, y: f32, w: f32, h: f32 }
+
+/// Represents a single word or contiguous piece of text on a line.
+pub struct WordSpan {
+    pub text: String,
+    /// The x-coordinate of the span's left edge.
+    pub x: f32,
+    /// The width of the span.
+    pub w: f32,
+    /// The font size specific to this span.
+    pub font_size: f32,
 }
-pub struct BBox {
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
+
+/// Represents a single line of text, containing one or more WordSpans.
+pub struct TextLine {
+    pub spans: Vec<WordSpan>,
+    pub bbox: BBox,
 }
-// Generate a function parse_pdf(path: String, start_page: u32, end_page: u32) -> Result<Vec<TextChunk>, String> {
-//   // Use lopdf to extract text chunks with coordinates and font info
-//   // Support lazy parsing for specified page range
-//   // Handle errors with meaningful messages
-// }
+
+// Generate a function parse_pdf(path: String, start_page: u32, end_page: u32) -> Result<Vec<TextLine>, String>
+// Use lopdf to process the page content stream, interpreting operators like Tj, TJ, Tm, and Tf.
+// Group text fragments into WordSpans and then group those into TextLines based on vertical position.
+// Return a vector of TextLines for each page, which is a more semantic and efficient structure for the reflow engine.
 ```
 
 ### 6.2 reflow_engine.rs
@@ -272,28 +282,9 @@ pub enum BlockKind {
 // }
 ```
 
-### 6.3 ai_processor.rs
+### 6.3 ai_processor.rs (after MVP)
 
-Purpose: Optional text correction with Candle + quantized SLM (e.g., CoEdit).
-Key Logic: Toggle via config; run on CPU; skip if disabled.
-
-Copilot Prompt:
-
-```rust
-// ai_processor.rs
-// Generate a function correct_text(text: String, enable_ai: bool) -> Result<(String, f32), String> {
-//   // If enable_ai, use Candle with quantized CoEdit SLM for text correction
-//   // Return corrected text and confidence score
-//   // Fallback to original text with 0.9 confidence if disabled
-// }
-
-// ai_processor.rs
-  //pub async fn generate_definition(word: &str, context_sentence: &str, enable_ai: bool) -> Result<(String, f32), String> {
-      // If enable_ai: run Candle or local model to produce a concise definition scoped to the sentence.
-      // Return (definition_text, confidence_score).
-      // If disabled or model missing: return ("", 0.0) or a short fallback.
-  //}
-```
+Purpose: PDF to Markdown or reflow-view by using Py03 with Docling
 
 ### 6.4 nlp_engine.rs
 

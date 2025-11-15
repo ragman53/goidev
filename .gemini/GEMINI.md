@@ -4,7 +4,7 @@ This document defines the **workflow** for how autonomous Agents collaborate to 
 
 - **`DESIGN.md`**: Defines **what** we build (the technical architecture and specifications).
 - **`PLANS.md`**: Defines **when** and in what order we build it (the execution plan and milestones).
-- **`AGENTS.md`** (this file): Defines **how** we build it (the collaborative process, roles, and rules).
+- **`GEMINI.md`** (this file): Defines **how** we build it (the collaborative process, roles, and rules).
 
 Agents must always consult `PLANS.md` as the single source of truth for project status and next steps, and refer to `DESIGN.md` for implementation details.
 
