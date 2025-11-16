@@ -9,8 +9,9 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 ## Progress
 
 - [x] (2025-10-16) Establish ExecPlan with vibe-coding and agent workflow.
-- [ ] (2025-11-16) Architectural shift from Dioxus to Tauri for better stability and cross-platform support. Updated DESIGN.md and PLANS.md.
-- [ ] Milestone 1: pdf_parser MVP — extract TextChunk (text + bbox + font_size) from page ranges (unit tests + CLI/demo).
+- [x] (2025-11-16) Architectural shift from Dioxus to Tauri for better stability and cross-platform support. Updated DESIGN.md and PLANS.md.
+- [x] (2025-11-17) Scaffolded the new project structure (`goidev-core`, `src-tauri`, `ui`) as defined in `DESIGN.md`.
+- [ ] Milestone 1: pdf_parser MVP
 - [ ] Milestone 2: reflow_engine — group TextChunks into Blocks (paragraphs/headings) with heuristics (tests).
 - [ ] Milestone 3: storage_layer — DB schema and functions to persist words and contexts (tests).
 - [ ] Milestone 4: nlp_engine — extract base form and sentence from a block (tests). 
@@ -35,6 +36,9 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 - **M1 - Initial Implementation (2025-10-17)**: Successfully implemented a basic `parse_pdf` function using `lopdf::Document::extract_text`. This function passes the initial "happy path" test by returning a `Vec<TextChunk>` that is not empty. The current implementation uses dummy values for `bbox` and `font_size`, which will be addressed in the refactoring step. This completes the first "Red -> Green" cycle.
   - **Vibe Reflection**: The `lopdf::extract_text` helper is a great way to get a quick win and validate the overall structure. It hides a lot of complexity, which is perfect for a first pass but insufficient for our final goal of getting detailed coordinates.
 
+- **Project Scaffolding (2025-11-17)**: Successfully created the initial project structure using `cargo tauri init`. This sets up the `src-tauri` directory for the backend, and we have placeholders for the `goidev-core` and `ui` (Leptos) crates. The application runs in development mode with `cargo tauri dev`.
+  - **Vibe Reflection**: Starting with the standard Tauri template gives us a solid, working foundation. We can now incrementally build out the `goidev-core` logic and the Leptos UI, knowing the shell is stable.
+
 - Populate after each milestone: what was achieved, verification steps, and remaining gaps.
 
 ## Data Contracts (Canonical)
@@ -43,7 +47,7 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 
 Goal:
 
-- Implement parse_pdf(path, start_page, end_page) -> `Result<Vec<TextChunk>, String>`
+- Implement parse_pdf(path, start_page, end_page) -> `Result<Vec<TextLine>, String>`
 - Ensure tests: one happy path and one edge case (empty page / missing ToUnicode)
 
 Learning context:
@@ -60,7 +64,7 @@ Acceptance criteria:
 Notes and constraints:
 
 - Use lopdf for content stream decoding.
-- Reference `.github/references/pdf` for operator handling, font decoding, and PdfState patterns.
+- Reference `.gemini/references/pdf` for operator handling, font decoding, and PdfState patterns.
 - For async callers, use tokio::task::spawn_blocking to avoid blocking the runtime.
 
 Concrete steps:
