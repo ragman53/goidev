@@ -15,12 +15,11 @@ Examples
 - [ ] feat(pdf_parser): add failing test for parse_pdf empty-page case — refs: M1 mode: L0 #high @ragma
 - [ ] test(reflow_engine): add hyphenation edge-case test — refs: M2 mode: L1 #medium
 
-Current Tasks
+## Current Tasks (Milestone 1)
 
-- [x] test(pdf_parser): Add red tests for happy path, empty page, and invalid page — refs: M1 mode: L0
-- [>] Implement `goidev-core/src/pdf_parser.rs` MVP and tests — refs: M1 mode: L0 #high
-- [ ] feat(pdf_parser): Refactor to process page content stream — refs: M1 mode: L0 #high
-- [ ] feat(pdf_parser): Implement state tracking for text matrix (Tm) and font size (Tf) — refs: M1 mode: L0 #high
-- [ ] feat(pdf_parser): Handle Tj/TJ operators to create TextChunks with correct position and font size — refs: M1 mode: L0 #high
+- [ ] **feat(project):** Scaffold the new project structure (`goidev-core`, `src-tauri`, `ui`) as defined in `DESIGN.md`. — refs: M1 mode: L0 #high
+- [ ] **test(pdf_parser):** Implement the page iteration loop in `parse_pdf` and extract raw content streams for each page. — refs: M1 mode: L0 #high
+- [ ] **feat(pdf_parser):** Add a failing test case that expects `TextLine` data from a simple sample PDF. — refs: M1 mode: L0 #medium
+- [ ] **feat(pdf_parser):** Implement the logic to process text-showing operators (`Tj`, `TJ`) and the text matrix operator (`Tm`) to extract text and its position. — refs: M1 mode: L0 #medium
 
 Keep TODO.md concise and actionable.

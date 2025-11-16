@@ -110,10 +110,6 @@ Always keep commit scope minimal and tied to a checked box in PLANS.md Progress.
 
 ## File Orientation
 
-- Backend crate: goidev-core/
-  - Key files: src/pdf_parser.rs, src/reflow_engine.rs, src/nlp_engine.rs, src/storage_layer.rs, src/api.rs
-- UI crate: dioxus-ui/
-  - Key files: src/app.rs, src/reflow_viewer.rs, src/components/
 - Canonical plan: PLANS.md
 - Short-run work queue: TODO.md (see below)
 

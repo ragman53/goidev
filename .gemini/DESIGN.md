@@ -1,128 +1,114 @@
-# GOIDEV Specification: AI-Enhanced PDF Reader & Vocabulary Builder
+# GOIDEV — Redesigned: Tauri + Leptos + goidev-core (Rust) + optional PyO3/docling
 
-Purpose: Canonical spec for building a local-first PDF reader with vocabulary capture, using Dioxus (desktop/web) and Rust backend. Designed for GitHub Copilot in VSCode, with embedded prompts for code generation. Targets junior engineers learning Rust.
+**Purpose (updated)**
+Redesign GOIDEV to use Tauri as the application shell with a Leptos frontend (WASM) and a Rust `goidev-core` backend crate. Provide an *optional* `ai_processor` implemented by embedding Python via PyO3 and using `docling` (or similar Python libraries) for higher-fidelity PDF reflow and parsing assistance.
 
-## Architecture Overview
+---
+
+## 1. High-level architecture
 
 ```
-+--------------------------------------+        +------------------+
-| Dioxus UI (Desktop/Web)              | <----> | Rust Backend     |
-| - ReflowViewer                       |        +------------------+
-| - Word Selection UI / Side Panel     |
-+------------------^-------------------+
-                   | (Async Calls)
-+------------------v-------------------+
-| goidev-core (Rust crate)             |
-| - pdf_parser (lopdf)                 |
-| - reflow_engine (heuristics)         |
-| - ai_processor (Candle + SLM, opt.)  |
-| - nlp_engine (unicode_segmentation,  |
-|                      waken_snowball) |
-| - storage_layer (rusqlite)           |
-+--------------------------------------+
-```f
++----------------------+     IPC/Commands     +-------------------------+
+|  Tauri App (shell)   | <------------------> |  goidev-core (Rust)     |
+|  - Leptos (WASM UI)  |   tauri::invoke()   |  - pdf_parser.rs        |
+|  - UI: ReflowViewer  |                     |  - reflow_engine.rs     |
++----------------------+                     |  - nlp_engine.rs        |
+                                             |  - storage_layer.rs     |
+                                             |  - commands.rs         |
+                                             |  - ai_processor (*)     |
+                                             +-------------------------+
+                                                         |
+                                                         | optional: PyO3 embed
+                                                         v
+                                                  +----------------+
+                                                  | Python: docling|
+                                                  | (via PyO3)     |
+                                                  +----------------+
+```
 
-## 1. Core Goals (MVP)
+Key notes:
 
-Open local PDF, render in continuous-scroll viewer (Kindle-like, no snapping).
-Double-click word → capture cleaned word + sentence → store with base form (stem/lemma).
-Track word occurrences and multiple contexts in SQLite.
-Minimal UI for viewing captured words/contexts.
-Local-first, performant (lazy loading), extensible for web monetization.
+* The UI is written in **Leptos** (Rust → WASM). This keeps the whole stack in Rust for better type-safety and developer ergonomics.
+* Tauri provides the native shell and secure IPC (tauri commands). The app bundle remains local-first and offline-capable.
+* `goidev-core` is the canonical Rust crate that encapsulates PDF parsing, reflow heuristics, NLP, and storage.
+* `ai_processor` is optional and implemented by embedding Python using **PyO3** to call `docling` (or other Python libs). This is an opt-in build feature to avoid shipping the Python runtime by default.
 
-## 2. Project Setup
+---
 
-### 2.1 Repository Structure
+## 2. Repository structure (recommended)
 
 ```
 goidev/
-├── goidev-core/           # Rust crate: backend logic
+├── goidev-core/             # Rust crate for core logic
 │   ├── src/
 │   │   ├── pdf_parser.rs
 │   │   ├── reflow_engine.rs
-│   │   ├── ai_processor.rs
+│   │   ├── ai_processor.rs    # gate with feature `python-ai`
 │   │   ├── nlp_engine.rs
 │   │   ├── storage_layer.rs
-│   │   ├── api.rs
-│   │   ├── lib.rs
+│   │   ├── commands.rs       # Tauri commands exported here
+│   │   └── lib.rs
+│   └── Cargo.toml
+├── src-tauri/               # Tauri shell
+│   ├── src/main.rs
+│   ├── tauri.conf.json
+│   └── Cargo.toml
+├── ui/                      # Leptos frontend app (WASM)
 │   ├── Cargo.toml
-├── dioxus-ui/             # Dioxus frontend (desktop/web)
-│   ├── src/
-│   │   ├── app.rs
-│   │   ├── reflow_viewer.rs
-│   │   ├── components/
-│   │   │   ├── page.rs
-│   │   │   ├── block.rs
-│   │   │   ├── word_capture_toast.rs
-│   │   │   ├── word_side_panel.rs
-│   ├── Cargo.toml
+│   ├── src/main.rs           # leptos::mount_to_body etc.
+│   └── components/
+│       ├── reflow_viewer.rs
+│       ├── side_panel.rs
+│       └── toasts.rs
 ├── README.md
-├── rust-toolchain.toml    # Pin Rust 1.90+
+└── rust-toolchain.toml
 ```
 
-### 2.2 Dependencies (Cargo.toml)
+---
 
-**goidev-core/Cargo.toml:**
+## 3. Cargo features & dependencies (high-level)
+
+**goidev-core/Cargo.toml** (key entries):
 
 ```toml
 [package]
 name = "goidev-core"
-version = "0.1.0"
 edition = "2024"
 
-[dependencies]
-lopdf = "0.38"          # PDF parsing
-rusqlite = { version = "0.37", features = ["bundled"] } # SQLite
-unicode_segmentation = "1.12"         # Sentence segmentation
-waken_snowball = "0.1"   # Word normalization (replaced rust-stemmers)
-serde = { version = "1.0", features = ["derive"] } # JSON
-uuid = { version = "1.11", features = ["v4"] } # UUIDs
-tokio = { version = "1.41", features = ["rt", "fs"] } # Async
-candle-core = { version = "0.8", optional = true } # Optional AI
-log = "0.4"             # Logging
-env_logger = "0.11"     # Logging setup
-pdfium-render = "0.8"   # Image fallback rendering
-```
-
-**dioxus-ui/Cargo.toml:**
-
-```toml
-[package]
-name = "dioxus-ui"
-version = "0.1.0"
-edition = "2024"
+[features]
+default = ["pdf-basic"]
+pdf-basic = ["lopdf"]
+python-ai = ["pyo3", "ai-docling"]
 
 [dependencies]
-dioxus = { version = "0.6", features = ["desktop", "web"] } # Desktop + WASM
-dioxus-logger = "0.6"   # Logging
-serde = { version = "1.0", features = ["derive"] } # JSON
-serde_json = "1.0"      # JSON parsing
-goidev-core = { path = "../goidev-core" } # Backend crate
+lopdf = { version = "0.38", optional = true }
+pdfium-render = { version = "0.8", optional = true }
+rusqlite = { version = "0.37", features = ["bundled"] }
+unicode_segmentation = "1.12"
+waken_snowball = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1.11", features = ["v4"] }
+tokio = { version = "1.41", features = ["rt", "fs"] }
+log = "0.4"
+env_logger = "0.11"
+
+# PyO3 & Python helper (optional)
+pyo3 = { version = "0.20", optional = true, features = ["auto-initialize"] }
+# A thin helper crate to invoke a docling-like Python module can be a dev-dep or separate package.
 ```
 
-### 2.3 Setup Commands
+Notes:
 
-```
-# Init projects
-cargo new goidev-core
-cargo new dioxus-ui
-cd dioxus-ui
-cargo add dioxus --features desktop,web
-cargo add dioxus-logger serde serde_json goidev-core --path ../goidev-core
-cd ../goidev-core
-cargo add lopdf rusqlite --features bundled waken_snowball serde --features derive uuid --features v4 tokio --features rt,fs candle-core --optional log env_logger pdfium-render
-# Install dioxus-cli for dev
-cargo install dioxus-cli
-# Run desktop
-cd dioxus-ui
-dioxus serve --platform desktop
-# Run web
-dioxus serve --platform web
-```
+* `python-ai` is an opt-in Cargo feature that enables `pyo3` usage and the `ai_processor` module.
+* Keep heavy or optional deps behind feature flags to keep the default binary small.
 
-## 3. Data Contracts
+---
 
-### 3.1 ReflowDocument (Backend → UI)
+## 4. IPC & Data Contracts (Leptos ↔ Tauri ↔ goidev-core)
+
+Use Tauri commands (`#[tauri::command]`) in `goidev-core::commands` and invoke from the Leptos frontend using `@tauri-apps/api` bindings (or `tauri::invoke` from Rust WASM shim). Example JSON contracts:
+
+**ReflowDocument** (Backend → UI)
 
 ```json
 {
@@ -131,321 +117,159 @@ dioxus serve --platform web
   "pages": [
     {
       "page_number": 1,
-      "blocks": [
-        {
-          "id": "page1_block1",
-          "type": "paragraph",
-          "text": "Reflowed text...",
-          "confidence": 0.95,
-          "bbox": {"x":0,"y":0,"w":600,"h":48}
-        }
-      ]
+      "blocks": [ { "id":"p1_b1", "type":"paragraph", "text":"...", "bbox": {...}, "confidence": 0.95 } ]
     }
   ]
 }
 ```
 
-### 3.2 Vocabulary Request/Response
-
-**Request (UI → Backend):**
+**WordSelectionRequest** (UI → Backend)
 
 ```json
-{
-  "documentId": "uuid",
-  "pageNumber": 3,
-  "selectedWord": "running",
-  "blockText": "The dog was running across the field. It was very fast."
-}
+{ "documentId":"uuid","pageNumber":3,"selectedWord":"running","blockText":"..." }
 ```
 
-**Response:**
+**WordSelectionResponse** (Backend → UI)
 
 ```json
-{
-  "status": "success",
-  "data": {
-    "word": "running",
-    "base_form": "run",
-    "sentence": "The dog was running across the field.",
-    "occurrence_count": 5
-  }
-}
+{ "status":"success","data": { "word":"running","base_form":"run","sentence":"...", "occurrence_count":5 } }
 ```
 
-## 4. Database Schema (SQLite)
+---
 
-```sql
-CREATE TABLE documents (
-  id TEXT PRIMARY KEY, -- uuid
-  title TEXT,
-  path TEXT NOT NULL UNIQUE,
-  imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+## 5. Module responsibilities (detailed)
 
-CREATE TABLE words (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  base_form TEXT NOT NULL UNIQUE,
-  first_seen_form TEXT NOT NULL,
-  occurrence_count INTEGER DEFAULT 1,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+### `pdf_parser.rs`
 
-CREATE TABLE word_contexts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  word_id INTEGER NOT NULL,
-  document_id TEXT NOT NULL,
-  page_number INTEGER,
-  sentence TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (word_id) REFERENCES words (id) ON DELETE CASCADE,
-  FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
-);
+* Use `lopdf` for a lightweight default pipeline to extract text, fonts, and the best-effort bounding boxes.
+* Provide `parse_pdf(path, start, end) -> Result<Vec<TextChunk>>`.
+* The parser will return a `Vec<TextLine>`.
+* Each `TextLine` contains its bounding box and a vector of `WordSpan`s, which hold the text, position, and font size.
 
-CREATE INDEX idx_words_base_form ON words(base_form);
-CREATE INDEX idx_word_contexts_word_id ON word_contexts(word_id);
+### `reflow_engine.rs`
+
+ * Group contiguous `TextLine`s into `Block`s (paragraphs/headings) using heuristics: font_size gaps, vertical gaps, left margins, and font-style changes.
+* Produce `ReflowDocument` data structure matching the data contract.
+* Expose deterministic `to_markdown()` for RAG/export.
+
+### `nlp_engine.rs`
+
+* Minimal pure-Rust lemmatization & sentence-splitting: use `waken_snowball` and `unicode_segmentation`.
+* Return base form (lemma) and the sentence containing the selected token.
+
+### `storage_layer.rs`
+
+* SQLite schema (same as prior DESIGN.md). Use `rusqlite`.
+* Implement migrations, indices, and accessors for words & contexts.
+
+### `commands.rs` (Tauri commands)
+
+* `open_document(path: String) -> ReflowDocument`
+* `process_word_selection(payload: WordSelectionRequest) -> WordSelectionResponse`
+* `get_word_list(filter, page, sort) -> Vec<WordSummary>`
+* `get_word_contexts(word_id) -> Vec<Context>`
+
+### `ai_processor.rs` (optional; feature `python-ai`)
+
+* If enabled, embed Python via PyO3 and call into `docling` functions to get improved layout, OCR, or reflow heuristics.
+* Provide a fallback Rust-only implementation when disabled.
+
+Implementation suggestions for `ai_processor`:
+
+* Initialize Python with `pyo3::prepare_freethreaded_python()` at app start when the feature is active.
+* Keep the API surface narrow: expose `ai_reflow_enhance(chunks: Vec<TextChunk>) -> Vec<Block>`.
+* Catch Python exceptions and fall back gracefully to Rust heuristics.
+
+Security & packaging note: embedding Python increases bundle complexity; provide a build flag to include an embedded Python runtime or detect a system Python at runtime.
+
+---
+
+## 6. Build & developer commands (examples)
+
+Prereqs:
+
+* Rust (nightly not required), cargo-leptos (optional), Node not required.
+* Tauri prerequisites: `cargo-tauri` tool and platform toolchains.
+
+Example dev flow (without python-ai):
+
+```bash
+# from repo root
+# 1) Build Leptos frontend -> wasm and assets
+cd ui
+cargo leptos build --release   # or the leptos build flow you prefer
+
+# 2) Add goidev-core as dependency to src-tauri
+cd ../src-tauri
+cargo add ../goidev-core --path ../goidev-core
+
+# 3) Run Tauri dev
+cargo tauri dev
 ```
 
-## 5. API Endpoints (Rust Async Functions)
+With python-ai feature (developer machine with Python & dependencies):
 
-```rust
-async fn open_document(path: String) -> Result<ReflowDocument, String>
-async fn process_word_selection(payload: WordSelectionRequest) -> Result<WordSelectionResponse, String>
-async fn get_word_list(filter: Option<String>, page: Option<i32>, sort: Option<String>) -> Result<Vec<WordSummary>, String>
-async fn get_word_contexts(word_id: i64) -> Result<Vec<Context>, String>
+```bash
+# create venv and install docling or equivalent
+python -m venv .venv && source .venv/bin/activate
+pip install docling    # or your chosen package
+
+# enable feature when building tauri
+cd src-tauri
+cargo tauri dev --features "python-ai"
 ```
 
-## 6. Module Specifications (goidev-core)
+Packaging: only enable `python-ai` for users who opt in (or bundle a lightweight Python runtime during packaging).
 
-### 6.1 pdf_parser.rs
+---
 
-Purpose: Parse PDF into TextChunks (text + coords + font info) using lopdf.
-Key Logic: Lazy parse visible pages; use Tokio for background parsing.
+## 7. Roadmap (8–10 weeks, updated)
 
-Copilot Prompt:
+* **Weeks 1–2:** Project scaffolding, Tauri + Leptos starter, minimal `open_document` that returns simple `ReflowDocument` from `lopdf`.
+* **Weeks 3–4:** `pdf_parser` → `reflow_engine` MVP, basic UI rendering (continuous scroll), double-click selection plumbing to `process_word_selection`.
+* **Weeks 5–6:** `nlp_engine` + storage layer; full word capture flow and side-panel UI.
+* **Weeks 7–8:** Tests, UX polish, export to Markdown, performance pass.
+* **Weeks 9–10 (opt):** Integrate `python-ai` feature using PyO3 + docling for improved reflow. Add CI matrix with & without `python-ai`.
 
-```rust
-// pdf_parser.rs
+Acceptance criteria for Milestone 1 (MVP):
 
-/// Represents a bounding box for a text chunk or line.
-/// Coordinates are in PDF points (1/72 inch), with the origin at the bottom-left of the page.
-pub struct BBox { x: f32, y: f32, w: f32, h: f32 }
+* `parse_pdf` returns non-empty `Vec<TextChunk>` for sample PDFs and includes bbox & font metadata.
+* UI can open a local PDF, show blocks, and capture a double-clicked word that is saved to SQLite.
 
-/// Represents a single word or contiguous piece of text on a line.
-pub struct WordSpan {
-    pub text: String,
-    /// The x-coordinate of the span's left edge.
-    pub x: f32,
-    /// The width of the span.
-    pub w: f32,
-    /// The font size specific to this span.
-    pub font_size: f32,
-}
+---
 
-/// Represents a single line of text, containing one or more WordSpans.
-pub struct TextLine {
-    pub spans: Vec<WordSpan>,
-    pub bbox: BBox,
-}
+## 8. Testing & CI
 
-// Generate a function parse_pdf(path: String, start_page: u32, end_page: u32) -> Result<Vec<TextLine>, String>
-// Use lopdf to process the page content stream, interpreting operators like Tj, TJ, Tm, and Tf.
-// Group text fragments into WordSpans and then group those into TextLines based on vertical position.
-// Return a vector of TextLines for each page, which is a more semantic and efficient structure for the reflow engine.
-```
+* Unit tests for `pdf_parser` parsing and `reflow_engine` grouping heuristics.
+* Integration tests that simulate Tauri commands using `tauri::test` harness (or direct unit tests on `commands.rs`).
+* CI should run with default features (no `python-ai`) to keep runner lightweight. Add an optional workflow for `python-ai` on self-hosted runners if needed.
 
-### 6.2 reflow_engine.rs
+---
 
-Purpose: Group TextChunks into blocks (paragraphs, headers) with heuristics.
-Key Logic: Join hyphenated words; assign confidence scores; fallback to pdfium-render for images.
+## 9. Notes, tradeoffs, and recommendations
 
-Copilot Prompt:
+* **Why Leptos (WASM Rust) vs JS frameworks?**
 
-```rust
-// reflow_engine.rs
-pub struct Block {
-    id: String,
-    kind: BlockKind,
-    text: Option<String>,
-    confidence: f32,
-    bbox: BBox,
-}
-pub enum BlockKind {
-    Paragraph,
-    Heading,
-    ImageFallback,
-}
-// Generate a function reflow_page(chunks: Vec<TextChunk>) -> Result<Vec<Block>, String> {
-//   // Group chunks by proximity and font size into paragraphs/headers
-//   // Join hyphenated words across lines
-//   // Assign confidence scores (0.0-1.0) based on layout consistency
-//   // Use pdfium-render for image fallback if text confidence < 0.5
-// }
-```
+  * Single-language (Rust) reduces context switching and centralizes types. Leptos works well with Tauri when compiled to Wasm.
+  * If you anticipate many 3rd-party JS UI libs, you may choose a JS frontend; otherwise Leptos is a strong Rust-native choice.
 
-### 6.3 ai_processor.rs (after MVP)
+* **Why PyO3 + docling optional?**
 
-Purpose: PDF to Markdown or reflow-view by using Py03 with Docling
+  * Python currently has richer PDF/OCR/layout tooling. Embedding it offers higher-quality reflow without reimplementing complex heuristics in Rust.
+  * But embedding Python increases bundle complexity and potential security surface — keep it opt-in.
 
-### 6.4 nlp_engine.rs
+* **Packaging**
 
-Purpose: Segment sentences (unicode_segmentation), normalize words (waken_snowball).
-Key Logic: Find first-match sentence; stem to base_form.
+  * Provide two package tiers: "lite" (Rust-only) and "ai" (bundled Python). Let users choose on download/install.
 
-Copilot Prompt:
+---
 
-```rust
-// nlp_engine.rs
-// Generate a function process_selection(word: String, block_text: String) -> Result<(String, String), String> {
-//   // Clean word (trim, lowercase, strip punctuation)
-//   // Stem with waken_snowball to get base_form
-//   // Use unicode_segmentation to segment block_text and find first sentence containing word
-//   // Return (base_form, sentence)
-// }
-```
+## 10. Next steps (actions you can take now)
 
-### 6.5 storage_layer.rs
+1. Confirm you want Leptos (WASM) rather than a JS frontend. If yes, I can convert the existing React examples in `DESIGN.md` to Leptos components.
+2. Decide whether `ai_processor` should be `embedded` (PyO3) or `external` (spawn a Python subprocess). I can provide both implementation sketches.
+3. If you want, I will update `PLANS.md` with milestone-level tasks and concrete TODO entries for the next 4 sprints.
 
-Purpose: Manage SQLite DB with migrations and transactions.
-Key Logic: Upsert words, insert contexts, ensure consistency.
+---
 
-Copilot Prompt:
-
-```rust
-// storage_layer.rs
-pub struct WordSelectionRequest {
-    document_id: String,
-    page_number: u32,
-    selected_word: String,
-    block_text: String,
-}
-pub struct WordSelectionResponse {
-    base_form: String,
-    sentence: String,
-    occurrence_count: i64,
-}
-// Generate a function save_word_and_context(payload: WordSelectionRequest, base_form: String, sentence: String) -> Result<i64, String> {
-//   // Use rusqlite to create tables if not exists
-//   // Transaction: upsert words (increment occurrence_count), insert word_contexts
-//   // Return new occurrence_count
-// }
-```
-
-### 6.6 api.rs
-
-Purpose: Handle async calls from UI.
-
-Copilot Prompt:
-
-```rust
-// api.rs
-// Generate async fn process_word_selection(payload: WordSelectionRequest) -> Result<WordSelectionResponse, String> {
-//   // Call nlp_engine to get base_form and sentence
-//   // Call storage_layer to save and get occurrence_count
-//   // Return JSON-compatible response
-// }
-```
-
-## 7. Dioxus UI Specifications (dioxus-ui)
-
-### 7.1 app.rs
-
-Purpose: Root component, manages document state.
-
-Copilot Prompt:
-
-```rust
-// app.rs
-// Generate a Dioxus component App that initializes dioxus-logger and manages a Resource<Option<ReflowDocument>>.
-//   // Render ReflowViewer if document loaded, else show file picker.
-//   // Include WordSidePanel and WordCaptureToast.
-```
-
-### 7.2 reflow_viewer.rs
-
-Purpose: Continuous-scroll viewer with lazy loading.
-
-Copilot Prompt:
-
-```rust
-// reflow_viewer.rs
-// Generate a Dioxus component ReflowViewer with prop ReadSignal<Option<ReflowDocument>>.
-//   // Implement continuous scroll with virtualization.
-//   // Render Page components lazily.
-//   // On dblclick in blocks, capture selection and call process_word_selection async.
-```
-
-### 7.3 components/page.rs
-
-Purpose: Render blocks for a single page.
-
-Copilot Prompt:
-
-```rust
-// components/page.rs
-// Generate a Dioxus component Page with prop page: Page.
-//   // Render list of Block components.
-//   // Pass dblclick handler to blocks.
-```
-
-### 7.4 components/block.rs
-
-Purpose: Render paragraph/heading/image; handle dblclick.
-
-Copilot Prompt:
-
-```rust
-// components/block.rs
-// Generate a Dioxus component Block with prop block: Block.
-//   // Render text or image fallback based on confidence.
-//   // On dblclick, use window.getSelection() to extract selected word and block text.
-```
-
-### 7.5 components/word_capture_toast.rs
-
-Purpose: Show confirmation of saved word.
-
-Copilot Prompt:
-
-```rust
-// components/word_capture_toast.rs
-// Generate a Dioxus component WordCaptureToast with prop response: Option<WordSelectionResponse>.
-//   // Show ephemeral toast with word, base_form, and occurrence_count.
-```
-
-### 7.6 components/word_side_panel.rs
-
-Purpose: Display captured words and contexts.
-
-Copilot Prompt:
-
-```rust
-// components/word_side_panel.rs
-// Generate a Dioxus component WordSidePanel that fetches word list via get_word_list async.
-//   // Display words; on click, fetch contexts with get_word_contexts.
-```
-
-## 8. Roadmap (8-10 Weeks)
-
-Weeks 1-3: Setup repo, implement pdf_parser, reflow_engine, basic ReflowViewer.
-Weeks 4-6: Add nlp_engine, storage_layer, process_word_selection, SidePanel.
-Weeks 7-10: Polish UI, add tests, optional ai_processor, optimize with Tokio.
-
-## 9. Edge Cases
-
-Multi-word Selection: Tokenize and store individual words.
-Scanned PDFs: Use pdfium-render for image fallback; skip OCR for MVP.
-Hyphenated Words: Join in reflow_engine.
-Large PDFs: Lazy parse, LRU cache for blocks.
-
-## 10. Testing
-
-Unit: reflow_engine, nlp_engine, storage_layer.
-Integration: End-to-end PDF-to-vocab flow.
-Metrics: Parse time, memory usage (local).
-
-## 11. Notes for Copilot
-
-Use log::info! for debugging.
-Ensure async calls are non-blocking (Tokio).
-Validate inputs (e.g., clean selectedWord).
-Run cargo clippy for Rust style.
+*End of redesigned spec.*

@@ -4,16 +4,17 @@ This ExecPlan is the canonical project plan. Keep Progress, Surprises, Decision 
 
 ## Purpose / Big Picture
 
-Users can open a local PDF, extract text with position and font size, reflow it into readable blocks, and capture vocabulary by selecting a word. Captured data (base form + sentence context) is stored in SQLite. A small Dioxus-based desktop UI demonstrates end-to-end behavior.
+Users can open a local PDF, extract text with position and font size, reflow it into readable blocks, and capture vocabulary by selecting a word. Captured data (base form + sentence context) is stored in SQLite. A Tauri-based desktop UI demonstrates end-to-end behavior, chosen for its stability, cross-platform capabilities, and potential for AI extensions.
 
 ## Progress
 
 - [x] (2025-10-16) Establish ExecPlan with vibe-coding and agent workflow.
+- [ ] (2025-11-16) Architectural shift from Dioxus to Tauri for better stability and cross-platform support. Updated DESIGN.md and PLANS.md.
 - [ ] Milestone 1: pdf_parser MVP — extract TextChunk (text + bbox + font_size) from page ranges (unit tests + CLI/demo).
 - [ ] Milestone 2: reflow_engine — group TextChunks into Blocks (paragraphs/headings) with heuristics (tests).
 - [ ] Milestone 3: storage_layer — DB schema and functions to persist words and contexts (tests).
-- [ ] Milestone 4: nlp_engine — extract base form and sentence from a block (tests).
-- [ ] Milestone 5: api + UI — wire pipeline; Dioxus UI supports double-click capture and displays captured words.
+- [ ] Milestone 4: nlp_engine — extract base form and sentence from a block (tests). 
+- [ ] Milestone 5: api + UI — wire pipeline; Tauri UI supports double-click capture and displays captured words.
 - [ ] Polish: logging, perf pass, docs, and markdown exporter for RAG.
 
 ## Surprises & Discoveries
@@ -22,9 +23,12 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 
 ## Decision Log
 
-- Decision: Keep font_size in TextChunk for heading detection and layout heuristics.
-  - Rationale: Enables better grouping and confidence scoring even if reflow does not immediately require it.
-  - Date/Author: 2025-10-16 / Agents
+- **Decision**: Switched from Dioxus to Tauri as the main UI framework.
+  - **Rationale**: Tauri offers greater stability, a clear path to mobile and desktop deployment, and better integration opportunities for future AI extensions. This aligns with the long-term vision of the project.
+  - **Date/Author**: 2025-11-16 / Agents & User
+- **Decision**: Keep font_size in TextChunk for heading detection and layout heuristics.
+  - **Rationale**: Enables better grouping and confidence scoring even if reflow does not immediately require it.
+  - **Date/Author**: 2025-10-16 / Agents
 
 ## Outcomes & Retrospective
 
@@ -34,10 +38,6 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 - Populate after each milestone: what was achieved, verification steps, and remaining gaps.
 
 ## Data Contracts (Canonical)
-
-- ReflowDocument (backend → UI): doc_id, title, pages → blocks with id, type, text, confidence, bbox.
-- TextChunk: { text: String, bbox: {x,y,w,h}, font_size: f32 }
-- Block: { id, kind, text, confidence, bbox }
 
 ## Milestone 1 — pdf_parser (MVP)
 
@@ -79,6 +79,9 @@ Concrete steps:
 
 ## Integration with RAG/Markdown
 
+- Idea: docling + Py03 <-> Rust
+- Purpose: parsing PDF documents and reflow.
+
 ---
 
 ## Acceptance & Verification (M1 example)
@@ -119,7 +122,7 @@ Concrete steps:
 ## Next Steps (after M1)
 
 - Implement reflow_engine grouping heuristics.
-- Build minimal Dioxus viewer that renders blocks and supports double-click selection to call the pipeline.
+- Build a minimal Tauri viewer that renders blocks and supports double-click selection to call the pipeline via Tauri commands.
 - Add storage_layer and nlp_engine integration.
 
 Keep this document current. Update Progress, Decision Log, Surprises, and Outcomes as you complete steps.

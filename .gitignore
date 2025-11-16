@@ -2,10 +2,6 @@
 target/
 Cargo.lock
 
-# Dioxus
-dist/
-.dioxus/
-
 # OS
 .DS_Store
 Thumbs.db

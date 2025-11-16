@@ -74,6 +74,17 @@ pub fn parse_pdf(path: &str, start_page: u32, end_page: u32) -> Result<Vec<TextL
     // Page numbers in lopdf are 1-based, which matches our funtion signature.
     for page_num in start_page..=end_page {
         
+        // Get the page ID from the page number.
+        let page_id = doc.get_page_object_id(page_num)
+            .ok_or_else(|| format!("Page {} not found", page_num))?;
+
+        // Extract the raw content stream for the page.
+        let content_data = doc.get_page_content(page_id)
+            .map_err(|e| format!("Failed to get content for page {}: {}", page_num, e))?;
+
+        // Decode the content stream into a sequence of operations.
+        let content = Content::decode(&content_data)
+            .map_err(|e| format!("Failed to decode content for page {}: {}", page_num, e))?;
     }
     
     Ok(all_lines)
