@@ -17,9 +17,8 @@ Examples
 
 ## Current Tasks (Milestone 1)
 
-- [x] **feat(project):** Scaffold the new project structure (`goidev-core`, `src-tauri`, `ui`) as defined in `DESIGN.md`. — refs: M1 mode: L0 #high
+- [x] **test(pdf_parser):** Add a failing test case that expects `TextLine` data (including position) from a simple sample PDF. — refs: M1 mode: L0 #high
 - [ ] **test(pdf_parser):** Implement the page iteration loop in `parse_pdf` and extract raw content streams for each page. — refs: M1 mode: L0 #high
-- [ ] **feat(pdf_parser):** Add a failing test case that expects `TextLine` data from a simple sample PDF. — refs: M1 mode: L0 #medium
 - [ ] **feat(pdf_parser):** Implement the logic to process text-showing operators (`Tj`, `TJ`) and the text matrix operator (`Tm`) to extract text and its position. — refs: M1 mode: L0 #medium
 
 Keep TODO.md concise and actionable.
