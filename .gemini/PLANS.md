@@ -11,10 +11,10 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 - [x] (2025-10-16) Establish ExecPlan with vibe-coding and agent workflow.
 - [x] (2025-11-16) Architectural shift from Dioxus to Tauri for better stability and cross-platform support. Updated DESIGN.md and PLANS.md.
 - [x] (2025-11-17) Scaffolded the new project structure (`goidev-core`, `src-tauri`, `ui`) as defined in `DESIGN.md`.
-- [ ] Milestone 1: pdf_parser MVP
+- [ ] Milestone 1: pdf_parser MVP (In Progress: Switching to operator parsing)
 - [ ] Milestone 2: reflow_engine — group TextChunks into Blocks (paragraphs/headings) with heuristics (tests).
 - [ ] Milestone 3: storage_layer — DB schema and functions to persist words and contexts (tests).
-- [ ] Milestone 4: nlp_engine — extract base form and sentence from a block (tests). 
+- [ ] Milestone 4: nlp_engine — extract base form and sentence from a block (tests).
 - [ ] Milestone 5: api + UI — wire pipeline; Tauri UI supports double-click capture and displays captured words.
 - [ ] Polish: logging, perf pass, docs, and markdown exporter for RAG.
 
@@ -34,12 +34,16 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 ## Outcomes & Retrospective
 
 - **M1 - Initial Implementation (2025-10-17)**: Successfully implemented a basic `parse_pdf` function using `lopdf::Document::extract_text`. This function passes the initial "happy path" test by returning a `Vec<TextChunk>` that is not empty. The current implementation uses dummy values for `bbox` and `font_size`, which will be addressed in the refactoring step. This completes the first "Red -> Green" cycle.
+
   - **Vibe Reflection**: The `lopdf::extract_text` helper is a great way to get a quick win and validate the overall structure. It hides a lot of complexity, which is perfect for a first pass but insufficient for our final goal of getting detailed coordinates.
 
 - **Project Scaffolding (2025-11-17)**: Successfully created the initial project structure using `cargo tauri init`. This sets up the `src-tauri` directory for the backend, and we have placeholders for the `goidev-core` and `ui` (Leptos) crates. The application runs in development mode with `cargo tauri dev`.
+
   - **Vibe Reflection**: Starting with the standard Tauri template gives us a solid, working foundation. We can now incrementally build out the `goidev-core` logic and the Leptos UI, knowing the shell is stable.
 
-- Populate after each milestone: what was achieved, verification steps, and remaining gaps.
+- **M1 - pdf_parser MVP (2025-11-19)**: Implemented `parse_pdf` using `lopdf`.
+  - **Verification**: `cargo test` passes. `test_extract_text_with_position` confirms text extraction.
+  - **Vibe Reflection**: `lopdf` works well for basic extraction. BBox and font size are currently placeholders, to be refined in M2/M3.
 
 ## Data Contracts (Canonical)
 
@@ -73,7 +77,7 @@ Concrete steps:
 2. Implement parse_pdf that:
    - Loads Document with lopdf.
    - Validates 1-based page range.
-   - For each page: decode Content and interpret BT/ET, Tf, Tm, Td, TD, T*, Tj, TJ to build TextChunk entries.
+   - For each page: decode Content and interpret BT/ET, Tf, Tm, Td, TD, T\*, Tj, TJ to build TextChunk entries.
    - Use Document::decode_text per-font where available; fall back to lossy UTF-8/UTF-16.
 3. Write tests:
    - test_extract_text_simple: verifies non-empty TextChunk on a sample PDF page.
@@ -91,6 +95,7 @@ Concrete steps:
 ## Acceptance & Verification (M1 example)
 
 - **Initial Happy Path Test (2025-10-17)**: PASSED
+
   - **Run unit tests**:
 
     ```shell
@@ -103,7 +108,7 @@ Concrete steps:
     ```c
     running 1 test
     test tests::pdf_parser_test::test_extract_text_simple_happy_path ... ok
-    
+
     test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
     ```
 
