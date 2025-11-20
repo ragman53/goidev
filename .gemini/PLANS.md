@@ -13,9 +13,10 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 - [x] (2025-11-17) Scaffolded the new project structure (`goidev-core`, `src-tauri`, `ui`) as defined in `DESIGN.md`.
 - [x] Milestone 1: pdf_parser MVP (Completed: Operator parsing with PdfState implemented)
 - [x] Milestone 2: reflow_engine — group TextChunks into Blocks (paragraphs/headings) with heuristics (tests).
-- [ ] Milestone 3: storage_layer — DB schema and functions to persist words and contexts (tests).
-- [ ] Milestone 4: nlp_engine — extract base form and sentence from a block (tests).
-- [ ] Milestone 5: api + UI — wire pipeline; Tauri UI supports double-click capture and displays captured words.
+- [ ] Milestone 3: Basic UI & Integration — Tauri command to invoke reflow; Leptos UI to render blocks.
+- [ ] Milestone 4: storage_layer — DB schema and functions to persist words and contexts (tests).
+- [ ] Milestone 5: nlp_engine — extract base form and sentence from a block (tests).
+- [ ] Milestone 6: Word Collection — wire UI selection to NLP & Storage; Side Panel implementation.
 - [ ] Polish: logging, perf pass, docs, and markdown exporter for RAG.
 
 ## Surprises & Discoveries
@@ -130,8 +131,8 @@ Concrete steps:
 
 ## Next Steps (after M1)
 
-- Implement reflow_engine grouping heuristics.
-- Build a minimal Tauri viewer that renders blocks and supports double-click selection to call the pipeline via Tauri commands.
-- Add storage_layer and nlp_engine integration.
+- Build a minimal Tauri viewer that renders blocks (M3).
+- Add storage_layer (M4) and nlp_engine (M5).
+- Implement word collection flow (M6).
 
 Keep this document current. Update Progress, Decision Log, Surprises, and Outcomes as you complete steps.

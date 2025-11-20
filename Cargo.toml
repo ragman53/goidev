@@ -10,8 +10,10 @@ wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 serde = { version = "1", features = ["derive"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }
 serde-wasm-bindgen = "0.6"
 console_error_panic_hook = "0.1.7"
+goidev-core = { path = "./goidev-core" }
 
 [workspace]
 members = ["src-tauri", "goidev-core"]

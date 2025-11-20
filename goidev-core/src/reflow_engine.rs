@@ -79,12 +79,17 @@ impl ReflowEngine {
         }
 
         // Vertical merge (next line in paragraph)
-        // Block is above Line (higher Y)
-        // block.y1 (bottom) should be close to line.y2 (top)
-        let vertical_gap = block.bbox.y1 - line.bbox.y2;
+        // In the coordinate system we're using (Y increases downward or acts like screen coords):
+        // - block.y1 is the TOP of the previous block
+        // - block.y2 is the BOTTOM of the previous block
+        // - line.y1 is the TOP of the current line
+        // - line.y2 is the BOTTOM of the current line
+        // Gap = Line TOP - Block BOTTOM
+        let vertical_gap = line.bbox.y1 - block.bbox.y2;
 
-        // Allow some gap (e.g. 1.5 * font size)
-        if vertical_gap >= -5.0 && vertical_gap < line.font_size * 1.5 {
+        // Allow some gap (e.g. up to 4.0 * font size for PDFs with larger line spacing)
+        // Negative gap means overlap, which we allow up to 5 units
+        if vertical_gap >= -5.0 && vertical_gap < line.font_size * 4.0 {
             return true;
         }
 

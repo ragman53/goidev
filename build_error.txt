@@ -1,0 +1,89 @@
+    Checking goidev-ui v0.1.0 (C:\Users\ragma\dev\goidev)
+error[E0599]: no method named `child` found for struct `leptos::html::HtmlElement<E, At, Ch>` in the current scope
+   --> src\components\reflow_viewer.rs:7:5
+    |
+  7 |       view! {
+    |  _____^
+  8 | |         <div class="reflow-viewer">
+  9 | |             <h1>{document.title}</h1>
+ 10 | |             <div class="blocks">
+...   |
+ 18 | |         </div>
+ 19 | |     }
+    | |_____^ method not found in `leptos::html::HtmlElement<leptos::html::Div, (), ()>`
+    |
+   ::: C:\Users\ragma\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tachys-0.2.10\src\html\element\mod.rs:273:8
+    |
+273 |       fn child(self, child: NewChild) -> Self::Output;
+    |          ----- the method is available for `leptos::html::HtmlElement<leptos::html::Div, (), ()>` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+    = note: this error originates in the macro `view` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: trait `ElementChild` which provides `child` is implemented but not in scope; perhaps you want to import it
+    |
+  1 + use leptos::prelude::ElementChild;
+    |
+
+error[E0599]: no method named `child` found for struct `leptos::html::HtmlElement<E, At, Ch>` in the current scope
+   --> src\components\reflow_viewer.rs:7:5
+    |
+  7 |       view! {
+    |  _____^
+  8 | |         <div class="reflow-viewer">
+  9 | |             <h1>{document.title}</h1>
+ 10 | |             <div class="blocks">
+...   |
+ 18 | |         </div>
+ 19 | |     }
+    | |_____^ method not found in `leptos::html::HtmlElement<H1, (), ()>`
+    |
+   ::: C:\Users\ragma\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tachys-0.2.10\src\html\element\mod.rs:273:8
+    |
+273 |       fn child(self, child: NewChild) -> Self::Output;
+    |          ----- the method is available for `leptos::html::HtmlElement<H1, (), ()>` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+    = note: this error originates in the macro `view` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: trait `ElementChild` which provides `child` is implemented but not in scope; perhaps you want to import it
+    |
+  1 + use leptos::prelude::ElementChild;
+    |
+
+error[E0599]: no method named `child` found for struct `leptos::html::HtmlElement<E, At, Ch>` in the current scope
+   --> src\components\reflow_viewer.rs:13:47
+    |
+ 13 |                         BlockRole::Heading => view! { <h2>{block.text}</h2> }.into_view(),
+    |                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `leptos::html::HtmlElement<H2, (), ()>`
+    |
+   ::: C:\Users\ragma\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tachys-0.2.10\src\html\element\mod.rs:273:8
+    |
+273 |     fn child(self, child: NewChild) -> Self::Output;
+    |        ----- the method is available for `leptos::html::HtmlElement<H2, (), ()>` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+    = note: this error originates in the macro `view` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: trait `ElementChild` which provides `child` is implemented but not in scope; perhaps you want to import it
+    |
+  1 + use leptos::prelude::ElementChild;
+    |
+
+error[E0599]: no method named `child` found for struct `leptos::html::HtmlElement<E, At, Ch>` in the current scope
+   --> src\components\reflow_viewer.rs:14:49
+    |
+ 14 |                         BlockRole::Paragraph => view! { <p>{block.text}</p> }.into_view(),
+    |                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `leptos::html::HtmlElement<leptos::html::P, (), ()>`
+    |
+   ::: C:\Users\ragma\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tachys-0.2.10\src\html\element\mod.rs:273:8
+    |
+273 |     fn child(self, child: NewChild) -> Self::Output;
+    |        ----- the method is available for `leptos::html::HtmlElement<leptos::html::P, (), ()>` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+    = note: this error originates in the macro `view` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: trait `ElementChild` which provides `child` is implemented but not in scope; perhaps you want to import it
+    |
+  1 + use leptos::prelude::ElementChild;
+    |
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `goidev-ui` (bin "goidev-ui") due to 4 previous errors

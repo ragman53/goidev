@@ -1,0 +1,73 @@
+   Compiling futures-executor v0.3.31
+   Compiling getrandom v0.3.4
+   Compiling num-traits v0.2.19
+   Compiling ppv-lite86 v0.2.21
+   Compiling regex-automata v0.4.13
+   Compiling gloo-net v0.6.0
+   Compiling crc32fast v1.5.0
+   Compiling wasm-streams v0.4.2
+   Compiling stringprep v0.1.5
+   Compiling time v0.3.44
+   Compiling nom_locate v5.0.0
+   Compiling jiff v0.2.16
+   Compiling rayon v1.11.0
+   Compiling codee v0.3.3
+   Compiling encoding_rs v0.8.35
+   Compiling ttf-parser v0.25.1
+   Compiling weezl v0.1.12
+error: The wasm32-unknown-unknown targets are not supported by default; you may need to enable the "wasm_js" configuration flag. Note that enabling the `wasm_js` feature flag alone is insufficient. For more information see: https://docs.rs/getrandom/0.3.4/#webassembly-support
+   --> C:\Users\ragma\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.3.4\src\backends.rs:194:17
+    |
+194 | /                 compile_error!(concat!(
+195 | |                     "The wasm32-unknown-unknown targets are not supported by default; \
+196 | |                     you may need to enable the \"wasm_js\" configuration flag. Note \
+197 | |                     that enabling the `wasm_js` feature flag alone is insufficient. \
+198 | |                     For more information see: \
+199 | |                     https://docs.rs/getrandom/", env!("CARGO_PKG_VERSION"), "/#webassembly-support"
+200 | |                 ));
+    | |__________________^
+
+error[E0425]: cannot find function `fill_inner` in module `backends`
+  --> C:\Users\ragma\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.3.4\src\lib.rs:99:19
+   |
+99 |         backends::fill_inner(dest)?;
+   |                   ^^^^^^^^^^ not found in `backends`
+
+error[E0425]: cannot find function `inner_u32` in module `backends`
+   --> C:\Users\ragma\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.3.4\src\lib.rs:123:15
+    |
+123 |     backends::inner_u32()
+    |               ^^^^^^^^^ not found in `backends`
+    |
+help: consider importing this function
+    |
+ 33 + use crate::util::inner_u32;
+    |
+help: if you import `inner_u32`, refer to it directly
+    |
+123 -     backends::inner_u32()
+123 +     inner_u32()
+    |
+
+error[E0425]: cannot find function `inner_u64` in module `backends`
+   --> C:\Users\ragma\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.3.4\src\lib.rs:137:15
+    |
+137 |     backends::inner_u64()
+    |               ^^^^^^^^^ not found in `backends`
+    |
+help: consider importing this function
+    |
+ 33 + use crate::util::inner_u64;
+    |
+help: if you import `inner_u64`, refer to it directly
+    |
+137 -     backends::inner_u64()
+137 +     inner_u64()
+    |
+
+For more information about this error, try `rustc --explain E0425`.
+   Compiling log v0.4.28
+   Compiling rangemap v1.7.0
+   Compiling bitflags v2.10.0
+error: could not compile `getrandom` (lib) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
