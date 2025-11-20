@@ -16,6 +16,8 @@ pub struct TextLine {
     pub font_size: f32,
 }
 
+use crate::pdf_state::PdfState;
+
 /// Parses a PDF file and extracts text lines with their positions.
 pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
     let doc = Document::load(path).map_err(|e| format!("Failed to load PDF: {}", e))?;
@@ -28,12 +30,13 @@ pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
         let content = lopdf::content::Content::decode(&content_data)
             .map_err(|e| format!("Failed to decode content for page {}: {}", page_num, e))?;
 
+        let mut state = PdfState::new();
         let mut current_font_size = 12.0; // Default
-        let mut current_x = 0.0;
-        let mut current_y = 0.0;
 
         for operation in content.operations.iter() {
             match operation.operator.as_str() {
+                "BT" => state.bt(),
+                "ET" => state.et(),
                 "Tf" => {
                     if let Some(size) = operation.operands.get(1) {
                         if let Ok(f) = size.as_f32() {
@@ -41,23 +44,48 @@ pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
                         }
                     }
                 }
-                "Td" | "TD" => {
+                "Td" => {
                     if let (Some(x), Some(y)) =
                         (operation.operands.get(0), operation.operands.get(1))
                     {
                         if let (Ok(dx), Ok(dy)) = (x.as_f32(), y.as_f32()) {
-                            current_x += dx;
-                            current_y += dy;
+                            state.td(dx, dy);
+                        }
+                    }
+                }
+                "TD" => {
+                    if let (Some(x), Some(y)) =
+                        (operation.operands.get(0), operation.operands.get(1))
+                    {
+                        if let (Ok(dx), Ok(dy)) = (x.as_f32(), y.as_f32()) {
+                            state.td_capital(dx, dy);
                         }
                     }
                 }
                 "Tm" => {
-                    if let (Some(x), Some(y)) =
-                        (operation.operands.get(4), operation.operands.get(5))
-                    {
-                        if let (Ok(new_x), Ok(new_y)) = (x.as_f32(), y.as_f32()) {
-                            current_x = new_x;
-                            current_y = new_y;
+                    if operation.operands.len() >= 6 {
+                        let ops: Vec<f32> = operation
+                            .operands
+                            .iter()
+                            .take(6)
+                            .filter_map(|o| o.as_f32().ok())
+                            .collect();
+                        if ops.len() == 6 {
+                            state.tm(ops[0], ops[1], ops[2], ops[3], ops[4], ops[5]);
+                        }
+                    }
+                }
+                "T*" => state.t_star(),
+                "cm" => {
+                    if operation.operands.len() >= 6 {
+                        let ops: Vec<f32> = operation
+                            .operands
+                            .iter()
+                            .take(6)
+                            .filter_map(|o| o.as_f32().ok())
+                            .collect();
+                        if ops.len() == 6 {
+                            state.cm(ops[0], ops[1], ops[2], ops[3], ops[4], ops[5]);
                         }
                     }
                 }
@@ -102,6 +130,7 @@ pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
                     };
 
                     if !text_str.trim().is_empty() {
+                        let (x, y) = state.current_position();
                         // Simplified width calculation: char_count * font_size * 0.5 (approx aspect ratio)
                         let width = text_str.len() as f32 * current_font_size * 0.5;
                         let height = current_font_size;
@@ -109,10 +138,10 @@ pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
                         text_lines.push(TextLine {
                             text: text_str,
                             bbox: BBox {
-                                x1: current_x,
-                                y1: current_y,
-                                x2: current_x + width,
-                                y2: current_y + height,
+                                x1: x,
+                                y1: y,
+                                x2: x + width,
+                                y2: y + height,
                             },
                             font_size: current_font_size,
                         });

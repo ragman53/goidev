@@ -37,3 +37,15 @@ fn test_extract_text_with_position() {
         line.font_size
     );
 }
+
+#[test]
+fn test_parse_pdf_no_text() {
+    // Assuming you create a PDF with no text content for this test.
+    // For now, we can use the existing one and check for text that doesn't exist.
+    let mut pdf_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    pdf_path.push("tests/resources/test.pdf");
+
+    let lines = parse_pdf(pdf_path.to_str().unwrap()).expect("Failed to parse PDF.");
+    let found = lines.iter().any(|line| line.text.contains("This text does not exist"));
+    assert!(!found, "Should not find non-existent text.");
+}

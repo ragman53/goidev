@@ -11,8 +11,8 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 - [x] (2025-10-16) Establish ExecPlan with vibe-coding and agent workflow.
 - [x] (2025-11-16) Architectural shift from Dioxus to Tauri for better stability and cross-platform support. Updated DESIGN.md and PLANS.md.
 - [x] (2025-11-17) Scaffolded the new project structure (`goidev-core`, `src-tauri`, `ui`) as defined in `DESIGN.md`.
-- [ ] Milestone 1: pdf_parser MVP (In Progress: Switching to operator parsing)
-- [ ] Milestone 2: reflow_engine — group TextChunks into Blocks (paragraphs/headings) with heuristics (tests).
+- [x] Milestone 1: pdf_parser MVP (Completed: Operator parsing with PdfState implemented)
+- [x] Milestone 2: reflow_engine — group TextChunks into Blocks (paragraphs/headings) with heuristics (tests).
 - [ ] Milestone 3: storage_layer — DB schema and functions to persist words and contexts (tests).
 - [ ] Milestone 4: nlp_engine — extract base form and sentence from a block (tests).
 - [ ] Milestone 5: api + UI — wire pipeline; Tauri UI supports double-click capture and displays captured words.

@@ -1,0 +1,16 @@
+
+running 1 test
+--- Reflowed Blocks ---
+Block 0: Role=Paragraph
+  BBox: BBox { x1: 89.291, y1: 733.193, x2: 569.2914, y2: 757.6511 }
+  Text: Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea taki-mata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.
+-----------------------
+Block 1: Role=Paragraph
+  BBox: BBox { x1: 294.911, y1: 197.99902, x2: 300.36557, y2: 208.90813 }
+  Text: 1
+-----------------------
+--- End of Blocks ---
+test test_reflow_real_pdf ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

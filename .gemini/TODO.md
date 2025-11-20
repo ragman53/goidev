@@ -15,10 +15,10 @@ Examples
 - [ ] feat(pdf_parser): add failing test for parse_pdf empty-page case — refs: M1 mode: L0 #high @ragma
 - [ ] test(reflow_engine): add hyphenation edge-case test — refs: M2 mode: L1 #medium
 
-## Current Tasks (Milestone 1)
+## Current Tasks (Milestone 2)
 
-- [x] **test(pdf_parser):** Add a failing test case that expects `TextLine` data (including position) from a simple sample PDF. — refs: M1 mode: L0 #high
-- [ ] **test(pdf_parser):** Implement the page iteration loop in `parse_pdf` and extract raw content streams for each page. — refs: M1 mode: L0 #high
-- [ ] **feat(pdf_parser):** Implement the logic to process text-showing operators (`Tj`, `TJ`) and the text matrix operator (`Tm`) to extract text and its position. — refs: M1 mode: L0 #medium
+- [x] **feat(reflow_engine):** Implement `Block` struct and `ReflowEngine` with heuristics for paragraph/heading grouping. — refs: M2 mode: L0 #high
+- [x] **test(reflow_engine):** Add unit tests for line merging and heading detection. — refs: M2 mode: L0 #high
+- [x] **test(reflow_engine):** Verify reflow on real PDF (`test.pdf`). — refs: M2 mode: L0 #medium
 
 Keep TODO.md concise and actionable.
