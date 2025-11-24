@@ -69,7 +69,6 @@ impl ReflowEngine {
         }
 
         // 2. Check Vertical/Horizontal proximity
-        // Assuming Y grows upwards (PDF standard)
 
         // Horizontal merge (same line)
         // Check if Y ranges overlap significantly
@@ -79,7 +78,7 @@ impl ReflowEngine {
         }
 
         // Vertical merge (next line in paragraph)
-        // In the coordinate system we're using (Y increases downward or acts like screen coords):
+        // In PDFs with Y increasing downward:
         // - block.y1 is the TOP of the previous block
         // - block.y2 is the BOTTOM of the previous block
         // - line.y1 is the TOP of the current line
@@ -87,9 +86,9 @@ impl ReflowEngine {
         // Gap = Line TOP - Block BOTTOM
         let vertical_gap = line.bbox.y1 - block.bbox.y2;
 
-        // Allow some gap (e.g. up to 4.0 * font size for PDFs with larger line spacing)
+        // Allow normal line spacing (up to 1.5x font size)
         // Negative gap means overlap, which we allow up to 5 units
-        if vertical_gap >= -5.0 && vertical_gap < line.font_size * 4.0 {
+        if vertical_gap >= -5.0 && vertical_gap < line.font_size * 1.5 {
             return true;
         }
 

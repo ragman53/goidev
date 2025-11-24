@@ -1,5 +1,10 @@
+//! Unit tests for the reflow engine.
+//!
+//! Tests line grouping into paragraphs, heading detection based on font size,
+//! and block role assignment.
+
 use goidev_core::pdf_parser::{BBox, TextLine};
-use goidev_core::reflow_engine::{Block, BlockRole, ReflowEngine};
+use goidev_core::reflow_engine::{BlockRole, ReflowEngine};
 
 #[test]
 fn test_group_lines_into_paragraph() {

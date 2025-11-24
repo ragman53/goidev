@@ -1,3 +1,7 @@
+//! Unit tests for PDF parser functionality.
+//!
+//! Tests text extraction, position tracking (BBox), and font size detection.
+
 use goidev_core::pdf_parser::parse_pdf;
 
 #[test]
@@ -46,6 +50,8 @@ fn test_parse_pdf_no_text() {
     pdf_path.push("tests/resources/test.pdf");
 
     let lines = parse_pdf(pdf_path.to_str().unwrap()).expect("Failed to parse PDF.");
-    let found = lines.iter().any(|line| line.text.contains("This text does not exist"));
+    let found = lines
+        .iter()
+        .any(|line| line.text.contains("This text does not exist"));
     assert!(!found, "Should not find non-existent text.");
 }

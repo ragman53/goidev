@@ -11,8 +11,10 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 - [x] (2025-10-16) Establish ExecPlan with vibe-coding and agent workflow.
 - [x] (2025-11-16) Architectural shift from Dioxus to Tauri for better stability and cross-platform support. Updated DESIGN.md and PLANS.md.
 - [x] (2025-11-17) Scaffolded the new project structure (`goidev-core`, `src-tauri`, `ui`) as defined in `DESIGN.md`.
-- [x] Milestone 1: pdf_parser MVP (Completed: Operator parsing with PdfState implemented)
-- [x] Milestone 2: reflow_engine — group TextChunks into Blocks (paragraphs/headings) with heuristics (tests).
+- [x] Milestone 1: pdf_parser MVP — Operator parsing with PdfState implemented; comprehensive text extraction working.
+- [x] Milestone 2: reflow_engine — group TextLines into Blocks (paragraphs/headings) with heuristics (tests).
+- [x] (2025-11-20) **Code Cleanup**: Cleaned and refactored `goidev-core` directory. Removed ~2.5 MB of temporary debug files, consolidated test suite, added comprehensive documentation.
+- [x] (2025-11-20) **Encoding Fixes**: Resolved PDF text encoding issues (custom ligatures, special quotes, WinAnsiEncoding) with comprehensive `decode_pdf_str` function.
 - [ ] Milestone 3: Basic UI & Integration — Tauri command to invoke reflow; Leptos UI to render blocks.
 - [ ] Milestone 4: storage_layer — DB schema and functions to persist words and contexts (tests).
 - [ ] Milestone 5: nlp_engine — extract base form and sentence from a block (tests).
@@ -21,16 +23,30 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 
 ## Surprises & Discoveries
 
-- Record parsing quirks, font encoding issues, layout edge-cases, and Windows path observations here with short evidence snippets.
+- **PDF Encoding Challenges (2025-11-20)**: Academic PDFs (e.g., Sage Publications) use custom byte mappings:
+
+  - `0x8F`, `0x90` for single quotes (not standard WinAnsi)
+  - `0x93`, `0x94` for ligatures `"fi"`, `"fl"` in some contexts, but double quotes in others
+  - `0x02`, `0x03` for ligatures `"ffi"`, `"ff"`
+  - Solution: Context-aware decoding in `decode_pdf_str` that detects custom encoding presence.
+  - **Evidence**: `test-1.pdf` originally produced garbled text ("・ｽ") which is now correctly decoded.
+
+- **Test Organization**: Initial test structure had overlapping files (`integration_tests.rs`, `reproduction_test.rs`) and many temporary debug output files. Consolidation improved clarity and reduced disk usage by 2.5 MB.
 
 ## Decision Log
 
 - **Decision**: Switched from Dioxus to Tauri as the main UI framework.
   - **Rationale**: Tauri offers greater stability, a clear path to mobile and desktop deployment, and better integration opportunities for future AI extensions. This aligns with the long-term vision of the project.
   - **Date/Author**: 2025-11-16 / Agents & User
-- **Decision**: Keep font_size in TextChunk for heading detection and layout heuristics.
+- **Decision**: Keep font_size in TextLine for heading detection and layout heuristics.
   - **Rationale**: Enables better grouping and confidence scoring even if reflow does not immediately require it.
   - **Date/Author**: 2025-10-16 / Agents
+- **Decision**: Implement context-aware PDF string decoding instead of pure WinAnsiEncoding.
+  - **Rationale**: Some publishers (e.g., Sage) use custom byte mappings for ligatures and quotes that vary by context. A single fixed mapping table would produce incorrect output. Solution: detect custom encoding usage and apply context-dependent transformations.
+  - **Date/Author**: 2025-11-20 / Agents
+- **Decision**: Consolidate integration test files and mark debug utilities as `#[ignore]`.
+  - **Rationale**: Reduced duplication between `integration_tests.rs` and `reproduction_test.rs`. Debug utilities like `debug_encoding.rs` should not run in standard test suite but remain available for troubleshooting.
+  - **Date/Author**: 2025-11-20 / Agents
 
 ## Outcomes & Retrospective
 
@@ -43,8 +59,28 @@ Users can open a local PDF, extract text with position and font size, reflow it 
   - **Vibe Reflection**: Starting with the standard Tauri template gives us a solid, working foundation. We can now incrementally build out the `goidev-core` logic and the Leptos UI, knowing the shell is stable.
 
 - **M1 - pdf_parser MVP (2025-11-19)**: Implemented `parse_pdf` using `lopdf`.
+
   - **Verification**: `cargo test` passes. `test_extract_text_with_position` confirms text extraction.
   - **Vibe Reflection**: `lopdf` works well for basic extraction. BBox and font size are currently placeholders, to be refined in M2/M3.
+
+- **M2 - reflow_engine (2025-11-19)**: Implemented `ReflowEngine::process` to group `TextLine` instances into logical blocks.
+
+  - **Verification**: `cargo test` passes. Unit tests verify paragraph grouping and heading detection based on font size.
+  - **Vibe Reflection**: Heuristic-based reflow works well for simple layouts. May need refinement for complex multi-column or mixed-font documents.
+
+- **Encoding Fixes (2025-11-20)**: Resolved garbled text issues in academic PDFs through context-aware `decode_pdf_str` function.
+
+  - **Challenge**: Sage Publications PDFs use non-standard byte mappings (e.g., `0x8F`/`0x90` for quotes, `0x93`/`0x94` context-dependent for ligatures vs quotes).
+  - **Solution**: Detect custom encoding presence and apply context-dependent transformations.
+  - **Verification**: `test_reflow_complex_pdf` now passes with correctly decoded text; no more \"・ｽ\" garbled characters.
+  - **Vibe Reflection**: Real-world PDFs are messier than expected. The decode function now handles UTF-16BE, WinAnsiEncoding, and custom publisher encodings robustly.
+
+- **Code Cleanup (2025-11-20)**: Cleaned and refactored `goidev-core` directory for better maintainability.
+  - **Removed**: 10 temporary files (~2.5 MB): debug outputs, experimental Rust files, Python analysis script.
+  - **Consolidated**: Merged `integration_tests.rs` and `reproduction_test.rs`; marked `debug_encoding.rs` as `#[ignore]`.
+  - **Improved**: Added comprehensive module-level documentation to all test files.
+  - **Verification**: All 6 tests pass; build succeeds; `cargo tauri dev` runs successfully.
+  - **Vibe Reflection**: Clean codebase makes it easier to navigate and maintain. Good practice to do periodic cleanup passes.
 
 ## Data Contracts (Canonical)
 

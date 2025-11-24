@@ -18,6 +18,74 @@ pub struct TextLine {
 
 use crate::pdf_state::PdfState;
 
+/// Decodes PDF string bytes into a Rust String.
+/// Handles UTF-16BE (if BOM present) and falls back to WinAnsiEncoding/PDFDocEncoding.
+pub fn decode_pdf_str(bytes: &[u8]) -> String {
+    if bytes.starts_with(&[0xFE, 0xFF]) {
+        // UTF-16BE
+        let u16_vec: Vec<u16> = bytes[2..]
+            .chunks_exact(2)
+            .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
+            .collect();
+        return String::from_utf16_lossy(&u16_vec);
+    }
+
+    // Detect custom encoding (Sage Publications PDFs use 0x8F/0x90 for quotes, 0x93/0x94 for ligatures)
+    let has_custom = bytes
+        .iter()
+        .any(|&b| matches!(b, 0x02 | 0x03 | 0x8F | 0x90));
+
+    let mut result = String::with_capacity(bytes.len());
+
+    for &b in bytes {
+        let s: &str = match b {
+            // ASCII printable
+            0x20..=0x7E => {
+                result.push(b as char);
+                continue;
+            }
+            // Ligatures (custom encoding)
+            0x02 => "ffi",
+            0x03 => "ff",
+            // WinAnsiEncoding mappings
+            0x85 => "\u{2026}", // Ellipsis
+            0x8F => "\u{2018}", // Left single quote (custom)
+            0x90 => "\u{2019}", // Right single quote/apostrophe (custom)
+            0x91 => "\u{2018}", // Left single quote
+            0x92 => "\u{2019}", // Right single quote
+            0x93 => {
+                if has_custom {
+                    "fi"
+                } else {
+                    "\u{201C}"
+                }
+            } // Context-dependent
+            0x94 => {
+                if has_custom {
+                    "fl"
+                } else {
+                    "\u{201D}"
+                }
+            } // Context-dependent
+            0x96 => "\u{2013}", // En dash
+            // Latin-1 symbols that appear in test-1.pdf
+            0xA8 => "\u{00A8}", // Diaeresis
+            0xAB => "\u{00AB}", // Left double angle quote
+            0xB4 => "\u{00B4}", // Acute accent
+            0xB8 => "\u{00B8}", // Cedilla
+            0xBC => "\u{00BC}", // One quarter
+            // Fallback: Latin-1 direct mapping for 0x80-0xFF
+            _ => {
+                result.push(b as char);
+                continue;
+            }
+        };
+        result.push_str(s);
+    }
+
+    result
+}
+
 /// Parses a PDF file and extracts text lines with their positions.
 pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
     let doc = Document::load(path).map_err(|e| format!("Failed to load PDF: {}", e))?;
@@ -96,7 +164,7 @@ pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
                             .operands
                             .get(0)
                             .and_then(|o| o.as_str().ok())
-                            .map(|bytes| String::from_utf8_lossy(bytes).to_string())
+                            .map(|bytes| decode_pdf_str(bytes))
                             .unwrap_or_default()
                     } else {
                         // TJ is an array of strings and numbers (kerning)
@@ -109,7 +177,7 @@ pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
                                 for op in arr {
                                     match op {
                                         lopdf::Object::String(bytes, _) => {
-                                            text.push_str(&String::from_utf8_lossy(bytes));
+                                            text.push_str(&decode_pdf_str(bytes));
                                         }
                                         lopdf::Object::Integer(i) => {
                                             if *i < -100 {
