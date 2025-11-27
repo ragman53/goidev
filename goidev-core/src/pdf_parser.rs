@@ -18,6 +18,7 @@ pub struct TextLine {
     pub text: String,
     pub bbox: BBox,
     pub font_size: f32,
+    pub page_num: u32,
 }
 
 /// Parses a PDF file and extracts text lines with their positions.
@@ -193,6 +194,7 @@ pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
                                 y2: y + height,
                             },
                             font_size: current_font_size,
+                            page_num,
                         });
                     }
                 }

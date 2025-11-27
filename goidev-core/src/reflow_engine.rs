@@ -12,6 +12,7 @@ pub struct Block {
     pub text: String,
     pub bbox: BBox,
     pub role: BlockRole,
+    pub page_num: u32,
 }
 
 pub struct ReflowEngine;
@@ -50,6 +51,7 @@ impl ReflowEngine {
                 text: line.text,
                 bbox: line.bbox,
                 role,
+                page_num: line.page_num,
             });
         }
 
@@ -57,6 +59,11 @@ impl ReflowEngine {
     }
 
     fn should_merge(block: &Block, line: &TextLine) -> bool {
+        // 0. Check Page Number
+        if block.page_num != line.page_num {
+            return false;
+        }
+
         // 1. Check Role (Font Size)
         let role = if line.font_size > 14.0 {
             BlockRole::Heading
@@ -78,13 +85,16 @@ impl ReflowEngine {
         }
 
         // Vertical merge (next line in paragraph)
-        // In PDFs with Y increasing downward:
-        // - block.y1 is the TOP of the previous block
-        // - block.y2 is the BOTTOM of the previous block
-        // - line.y1 is the TOP of the current line
-        // - line.y2 is the BOTTOM of the current line
-        // Gap = Line TOP - Block BOTTOM
-        let vertical_gap = line.bbox.y1 - block.bbox.y2;
+        // Calculate gap based on coordinate system direction
+        let vertical_gap = if block.bbox.y1 > line.bbox.y1 {
+            // Y-up (Standard PDF): Block is above Line (higher Y)
+            // Gap = Block Bottom (y1) - Line Top (y2)
+            block.bbox.y1 - line.bbox.y2
+        } else {
+            // Y-down (Screen): Block is above Line (lower Y)
+            // Gap = Line Top (y1) - Block Bottom (y2)
+            line.bbox.y1 - block.bbox.y2
+        };
 
         // Allow normal line spacing (up to 1.5x font size)
         // Negative gap means overlap, which we allow up to 5 units
