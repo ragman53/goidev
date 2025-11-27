@@ -1,5 +1,9 @@
-use lopdf::Document;
+use lopdf::{Document, Object};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+use crate::font_utils::{FontEncoding, parse_font_encoding};
+use crate::pdf_state::PdfState;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BBox {
@@ -16,80 +20,11 @@ pub struct TextLine {
     pub font_size: f32,
 }
 
-use crate::pdf_state::PdfState;
-
-/// Decodes PDF string bytes into a Rust String.
-/// Handles UTF-16BE (if BOM present) and falls back to WinAnsiEncoding/PDFDocEncoding.
-pub fn decode_pdf_str(bytes: &[u8]) -> String {
-    if bytes.starts_with(&[0xFE, 0xFF]) {
-        // UTF-16BE
-        let u16_vec: Vec<u16> = bytes[2..]
-            .chunks_exact(2)
-            .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
-            .collect();
-        return String::from_utf16_lossy(&u16_vec);
-    }
-
-    // Detect custom encoding (Sage Publications PDFs use 0x8F/0x90 for quotes, 0x93/0x94 for ligatures)
-    let has_custom = bytes
-        .iter()
-        .any(|&b| matches!(b, 0x02 | 0x03 | 0x8F | 0x90));
-
-    let mut result = String::with_capacity(bytes.len());
-
-    for &b in bytes {
-        let s: &str = match b {
-            // ASCII printable
-            0x20..=0x7E => {
-                result.push(b as char);
-                continue;
-            }
-            // Ligatures (custom encoding)
-            0x02 => "ffi",
-            0x03 => "ff",
-            // WinAnsiEncoding mappings
-            0x85 => "\u{2026}", // Ellipsis
-            0x8F => "\u{2018}", // Left single quote (custom)
-            0x90 => "\u{2019}", // Right single quote/apostrophe (custom)
-            0x91 => "\u{2018}", // Left single quote
-            0x92 => "\u{2019}", // Right single quote
-            0x93 => {
-                if has_custom {
-                    "fi"
-                } else {
-                    "\u{201C}"
-                }
-            } // Context-dependent
-            0x94 => {
-                if has_custom {
-                    "fl"
-                } else {
-                    "\u{201D}"
-                }
-            } // Context-dependent
-            0x96 => "\u{2013}", // En dash
-            // Latin-1 symbols that appear in test-1.pdf
-            0xA8 => "\u{00A8}", // Diaeresis
-            0xAB => "\u{00AB}", // Left double angle quote
-            0xB4 => "\u{00B4}", // Acute accent
-            0xB8 => "\u{00B8}", // Cedilla
-            0xBC => "\u{00BC}", // One quarter
-            // Fallback: Latin-1 direct mapping for 0x80-0xFF
-            _ => {
-                result.push(b as char);
-                continue;
-            }
-        };
-        result.push_str(s);
-    }
-
-    result
-}
-
 /// Parses a PDF file and extracts text lines with their positions.
 pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
     let doc = Document::load(path).map_err(|e| format!("Failed to load PDF: {}", e))?;
     let mut text_lines = Vec::new();
+    let mut font_map: HashMap<Vec<u8>, FontEncoding> = HashMap::new();
 
     for (page_num, page_id) in doc.get_pages() {
         let content_data = doc
@@ -98,14 +33,56 @@ pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
         let content = lopdf::content::Content::decode(&content_data)
             .map_err(|e| format!("Failed to decode content for page {}: {}", page_num, e))?;
 
+        // Parse page fonts to build encoding maps
+        if let Ok((Some(resources), _)) = doc.get_page_resources(page_id) {
+            if let Ok(fonts) = resources.get(b"Font").and_then(|o| o.as_dict()) {
+                for (name, obj) in fonts.iter() {
+                    let font_dict = match obj {
+                        Object::Reference(id) => doc.get_object(*id).and_then(|o| o.as_dict()).ok(),
+                        Object::Dictionary(dict) => Some(dict),
+                        _ => None,
+                    };
+
+                    if let Some(dict) = font_dict {
+                        let mut encoding = parse_font_encoding(dict);
+
+                        if let Ok(to_unicode) = dict.get(b"ToUnicode") {
+                            let stream_obj = match to_unicode {
+                                Object::Reference(id) => doc.get_object(*id).ok(),
+                                Object::Stream(_) => Some(to_unicode),
+                                _ => None,
+                            };
+                            if let Some(Object::Stream(stream)) = stream_obj {
+                                if let Ok(content) = stream.decompressed_content() {
+                                    encoding.apply_to_unicode(&content);
+                                }
+                            }
+                        }
+
+                        if encoding.map.is_empty() {
+                            crate::font_utils::populate_win_ansi(&mut encoding.map);
+                        }
+                        font_map.insert(name.clone(), encoding);
+                    }
+                }
+            }
+        }
+
         let mut state = PdfState::new();
         let mut current_font_size = 12.0; // Default
+        let mut current_font_name = Vec::new();
+        let default_encoding = FontEncoding::new(); // Fallback
 
         for operation in content.operations.iter() {
             match operation.operator.as_str() {
                 "BT" => state.bt(),
                 "ET" => state.et(),
                 "Tf" => {
+                    if let Some(name_obj) = operation.operands.get(0) {
+                        if let Ok(name) = name_obj.as_name() {
+                            current_font_name = name.to_vec();
+                        }
+                    }
                     if let Some(size) = operation.operands.get(1) {
                         if let Ok(f) = size.as_f32() {
                             current_font_size = f;
@@ -158,13 +135,17 @@ pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
                     }
                 }
                 "Tj" | "TJ" => {
+                    let encoding = font_map
+                        .get(&current_font_name)
+                        .unwrap_or(&default_encoding);
+
                     // Extract text string
                     let text_str = if operation.operator == "Tj" {
                         operation
                             .operands
                             .get(0)
                             .and_then(|o| o.as_str().ok())
-                            .map(|bytes| decode_pdf_str(bytes))
+                            .map(|bytes| encoding.decode(bytes))
                             .unwrap_or_default()
                     } else {
                         // TJ is an array of strings and numbers (kerning)
@@ -177,7 +158,7 @@ pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
                                 for op in arr {
                                     match op {
                                         lopdf::Object::String(bytes, _) => {
-                                            text.push_str(&decode_pdf_str(bytes));
+                                            text.push_str(&encoding.decode(bytes));
                                         }
                                         lopdf::Object::Integer(i) => {
                                             if *i < -100 {

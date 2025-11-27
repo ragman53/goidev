@@ -1,4 +1,5 @@
 pub mod dto;
+pub mod font_utils;
 /// The main PDF parsing module.
 pub mod pdf_parser;
 pub mod pdf_state;

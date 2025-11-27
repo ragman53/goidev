@@ -86,3 +86,16 @@ Because the `load` function requires `AsRef<Path>`, the caller can freely pass a
 * `PathBuf` (an owned path)
 
 Inside the function, any of these types can be safely handled as a `&Path` (by calling `.as_ref()` if needed). This creates a flexible and ergonomic API that doesn't force unnecessary conversions on the user.
+
+### 6. PDF Text Extraction: It's Not Just ASCII
+
+A common misconception is that PDF text streams (`Tj` operators) contain ASCII or Unicode characters. In reality, they contain **glyph indices** or **character codes** that map to glyphs in a specific font.
+
+To extract meaningful text, we must traverse a hierarchy of mapping mechanisms:
+
+1.  **ToUnicode CMap**: The gold standard. A map embedded in the font that explicitly translates character codes to Unicode strings. If present, this should be the primary source of truth.
+2.  **Encoding Dictionary**: Defines a base encoding (e.g., `WinAnsiEncoding`) and a `Differences` array. The `Differences` array maps specific codes to **Glyph Names** (e.g., `/quoteleft`, `/fi`).
+3.  **Glyph Name Mapping**: If we get a glyph name like `/fi`, we need a lookup table (Adobe Glyph List) to convert it to the Unicode string `"fi"`.
+4.  **Fallback**: If all else fails, we might assume `WinAnsiEncoding` or Latin-1, but this leads to "mojibake" (garbled text) for smart quotes (`0x93`, `0x94`) and ligatures.
+
+**Key Lesson**: Hardcoding mappings for specific bytes (e.g., `0x93` -> `"`) works for one PDF but fails for others. A robust parser must implement the full lookup chain (`ToUnicode` -> `Encoding` -> `Built-in`).

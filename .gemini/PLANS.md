@@ -15,6 +15,7 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 - [x] Milestone 2: reflow_engine — group TextLines into Blocks (paragraphs/headings) with heuristics (tests).
 - [x] (2025-11-20) **Code Cleanup**: Cleaned and refactored `goidev-core` directory. Removed ~2.5 MB of temporary debug files, consolidated test suite, added comprehensive documentation.
 - [x] (2025-11-20) **Encoding Fixes**: Resolved PDF text encoding issues (custom ligatures, special quotes, WinAnsiEncoding) with comprehensive `decode_pdf_str` function.
+- [x] (2025-11-20) **Encoding Refactor**: Replaced hardcoded `decode_pdf_str` with generic `FontEncoding` system (ToUnicode, Encoding/Differences, WinAnsi fallback).
 - [ ] Milestone 3: Basic UI & Integration — Tauri command to invoke reflow; Leptos UI to render blocks.
 - [ ] Milestone 4: storage_layer — DB schema and functions to persist words and contexts (tests).
 - [ ] Milestone 5: nlp_engine — extract base form and sentence from a block (tests).
@@ -31,6 +32,10 @@ Users can open a local PDF, extract text with position and font size, reflow it 
   - Solution: Context-aware decoding in `decode_pdf_str` that detects custom encoding presence.
   - **Evidence**: `test-1.pdf` originally produced garbled text ("・ｽ") which is now correctly decoded.
 
+- **Hidden Font Resources & ToUnicode (2025-11-20)**:
+  - **Issue**: Some fonts (e.g., `F4` in test PDF) had no `Encoding` dictionary but used a `ToUnicode` CMap for mapping custom glyphs. `lopdf` also failed to find `Resources` on subsequent pages, implying reliance on inherited/global state.
+  - **Solution**: Implemented `ToUnicode` parsing and persisted a `font_map` across pages to handle missing resource dictionaries.
+
 - **Test Organization**: Initial test structure had overlapping files (`integration_tests.rs`, `reproduction_test.rs`) and many temporary debug output files. Consolidation improved clarity and reduced disk usage by 2.5 MB.
 
 ## Decision Log
@@ -46,6 +51,9 @@ Users can open a local PDF, extract text with position and font size, reflow it 
   - **Date/Author**: 2025-11-20 / Agents
 - **Decision**: Consolidate integration test files and mark debug utilities as `#[ignore]`.
   - **Rationale**: Reduced duplication between `integration_tests.rs` and `reproduction_test.rs`. Debug utilities like `debug_encoding.rs` should not run in standard test suite but remain available for troubleshooting.
+  - **Date/Author**: 2025-11-20 / Agents
+- **Decision**: Switch from hardcoded PDF decoding to generic font parsing.
+  - **Rationale**: Hardcoding resolved specific byte issues but failed when fonts lacked explicit Encoding entries or used ToUnicode. A generic solution parsing `ToUnicode` and `Differences` is robust across different PDFs.
   - **Date/Author**: 2025-11-20 / Agents
 
 ## Outcomes & Retrospective
@@ -81,6 +89,11 @@ Users can open a local PDF, extract text with position and font size, reflow it 
   - **Improved**: Added comprehensive module-level documentation to all test files.
   - **Verification**: All 6 tests pass; build succeeds; `cargo tauri dev` runs successfully.
   - **Vibe Reflection**: Clean codebase makes it easier to navigate and maintain. Good practice to do periodic cleanup passes.
+
+- **Generic Font Decoding (2025-11-20)**: Refactored `pdf_parser` to be fully context-aware.
+  - **Implementation**: Parsing `ToUnicode` CMaps, `Encoding` dictionaries with `Differences`, and fallback to `WinAnsi`.
+  - **Verification**: `test_reflow_complex_pdf` passes without any hardcoded replacement logic.
+  - **Vibe Reflection**: Moving from "make it work" (hardcoding) to "make it right" (generic) was essential when the hardcoded solution failed on slightly different font structures (`F4` missing Encoding entry).
 
 ## Data Contracts (Canonical)
 
