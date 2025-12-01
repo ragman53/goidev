@@ -99,3 +99,21 @@ To extract meaningful text, we must traverse a hierarchy of mapping mechanisms:
 4.  **Fallback**: If all else fails, we might assume `WinAnsiEncoding` or Latin-1, but this leads to "mojibake" (garbled text) for smart quotes (`0x93`, `0x94`) and ligatures.
 
 **Key Lesson**: Hardcoding mappings for specific bytes (e.g., `0x93` -> `"`) works for one PDF but fails for others. A robust parser must implement the full lookup chain (`ToUnicode` -> `Encoding` -> `Built-in`).
+
+## M3: Basic UI & Integration
+
+### 7. Coordinate Systems (Y-Up vs. Y-Down)
+
+PDFs traditionally use a Cartesian coordinate system where **Y increases upwards** (origin at bottom-left). Screen coordinates (HTML/CSS, many graphics libraries) typically have **Y increasing downwards** (origin at top-left).
+
+When calculating vertical gaps for reflow (e.g., merging lines into paragraphs), we must account for this directionality:
+
+*   **Y-Up (PDF)**: A block visually *above* another has a **higher** Y value. Gap = `Block.bottom - Line.top` becomes `Block.y1 - Line.y2`.
+*   **Y-Down (Screen)**: A block visually *above* another has a **lower** Y value. Gap = `Line.top - Block.bottom` becomes `Line.y1 - Block.y2`.
+
+Failing to detect this leads to negative gap calculations, preventing correct paragraph merging.
+
+### 8. Styling for Readability
+
+*   **Explicit Colors**: When setting a light background (e.g., `#f8f9fa` for alternating pages), you must explicitly set the text `color` (e.g., `#333333`). Relying on browser defaults or inherited themes (especially in dark mode capable apps) can result in invisible white-on-white text.
+*   **Visual Separation**: Alternating background colors for pages is a simple but effective way to maintain user orientation in a reflowed (continuous scroll) view.

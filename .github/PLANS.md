@@ -16,7 +16,7 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 - [x] (2025-11-20) **Code Cleanup**: Cleaned and refactored `goidev-core` directory. Removed ~2.5 MB of temporary debug files, consolidated test suite, added comprehensive documentation.
 - [x] (2025-11-20) **Encoding Fixes**: Resolved PDF text encoding issues (custom ligatures, special quotes, WinAnsiEncoding) with comprehensive `decode_pdf_str` function.
 - [x] (2025-11-20) **Encoding Refactor**: Replaced hardcoded `decode_pdf_str` with generic `FontEncoding` system (ToUnicode, Encoding/Differences, WinAnsi fallback).
-- [ ] Milestone 3: Basic UI & Integration — Tauri command to invoke reflow; Leptos UI to render blocks.
+- [x] Milestone 3: Basic UI & Integration — Tauri command to invoke reflow; Leptos UI to render blocks.
 - [ ] Milestone 4: storage_layer — DB schema and functions to persist words and contexts (tests).
 - [ ] Milestone 5: nlp_engine — extract base form and sentence from a block (tests).
 - [ ] Milestone 6: Word Collection — wire UI selection to NLP & Storage; Side Panel implementation.
@@ -94,6 +94,12 @@ Users can open a local PDF, extract text with position and font size, reflow it 
   - **Implementation**: Parsing `ToUnicode` CMaps, `Encoding` dictionaries with `Differences`, and fallback to `WinAnsi`.
   - **Verification**: `test_reflow_complex_pdf` passes without any hardcoded replacement logic.
   - **Vibe Reflection**: Moving from "make it work" (hardcoding) to "make it right" (generic) was essential when the hardcoded solution failed on slightly different font structures (`F4` missing Encoding entry).
+
+- **M3 - Basic UI & Integration (2025-11-21)**: Implemented `open_document` Tauri command and `ReflowViewer` component.
+  - **UI Features**: Page-aware rendering with alternating backgrounds (`#ffffff` / `#f8f9fa`), explicit text color (`#333333`), and page numbering.
+  - **Engine Update**: ReflowEngine now respects page boundaries (no merge across pages) and correctly handles vertical gaps for both Y-up (PDF) and Y-down (Screen) coordinates.
+  - **Verification**: Manual visual verification of PDF rendering shows clear page separation and correct paragraph grouping.
+  - **Vibe Reflection**: Simple visual cues like alternating backgrounds significantly improve the reading experience compared to a continuous wall of text. Explicit styling is crucial when moving from raw data to UI.
 
 ## Data Contracts (Canonical)
 

@@ -30,8 +30,8 @@ Examples
 ## Current Tasks (Milestone 3)
 
 - [x] **fix(pdf_parser):** Implement generic `ToUnicode` and `Encoding` handling to fix text decoding. — refs: M2 mode: L3 #high
-- [ ] **feat(tauri):** Implement `open_document` Tauri command to call `parse_pdf` and `ReflowEngine`. — refs: M3 mode: L0 #high
-- [ ] **feat(ui):** Create `ReflowViewer` Leptos component to display blocks. — refs: M3 mode: L0 #high
+- [x] **feat(tauri):** Implement `open_document` Tauri command to call `parse_pdf` and `ReflowEngine`. — refs: M3 mode: L0 #high
+- [x] **feat(ui):** Create `ReflowViewer` Leptos component to display blocks. — refs: M3 mode: L0 #high
 - [ ] **feat(ui):** Integrate file picker to open PDF. — refs: M3 mode: L0 #medium
 
 Keep TODO.md concise and actionable.
