@@ -46,12 +46,20 @@ impl Matrix3x3 {
     }
 }
 
+/// Saved graphics state for q/Q operators
+#[derive(Debug, Clone)]
+struct GraphicsState {
+    ctm: Matrix3x3,
+}
+
 #[derive(Debug, Clone)]
 pub struct PdfState {
     ctm: Matrix3x3,
     pub tm: Matrix3x3,
     leading: f32,
     pub m: (f32, f32),
+    /// Graphics state stack for q/Q operators
+    gs_stack: Vec<GraphicsState>,
 }
 
 impl Default for PdfState {
@@ -66,6 +74,21 @@ impl PdfState {
             ctm: Matrix3x3::identity(),
             leading: 0.0,
             m: (0.0, 0.0),
+            gs_stack: Vec::new(),
+        }
+    }
+
+    /// Save graphics state (q operator)
+    pub fn save_graphics_state(&mut self) {
+        self.gs_stack.push(GraphicsState {
+            ctm: self.ctm,
+        });
+    }
+
+    /// Restore graphics state (Q operator)
+    pub fn restore_graphics_state(&mut self) {
+        if let Some(saved) = self.gs_stack.pop() {
+            self.ctm = saved.ctm;
         }
     }
 
@@ -110,10 +133,28 @@ impl PdfState {
     }
 
     pub fn current_position(&self) -> (f32, f32) {
-        // can be wrong. but i think we apply the tm on the ctm and not the other way around
+        // PDF text rendering: position = CTM × Tm × [0, 0, 1]
+        // The text matrix (Tm) is in text space, CTM transforms to device space
         let combined = self.ctm.multiply(&self.tm);
-        let f = combined.apply_to_origin();
-        f
+        combined.apply_to_origin()
+    }
+
+    /// Get the effective text scale factor (for font size calculation).
+    /// Uses the 'd' component of the combined matrix as vertical scale.
+    pub fn text_scale(&self) -> f32 {
+        let combined = self.ctm.multiply(&self.tm);
+        // Use the vertical scale (d component) - usually matches horizontal scale (a)
+        // Take absolute value since scale can be negative for flipped text
+        combined.d.abs()
+    }
+
+    /// Reset state for a new page
+    pub fn reset_for_page(&mut self) {
+        self.ctm = Matrix3x3::identity();
+        self.tm = Matrix3x3::identity();
+        self.leading = 0.0;
+        self.m = (0.0, 0.0);
+        self.gs_stack.clear();
     }
 
     pub fn l(&self, to: (f32, f32)) -> ((f32, f32), (f32, f32)) {

@@ -60,3 +60,38 @@ fn test_reflow_complex_pdf() {
         "Should not contain garbled encoding characters"
     );
 }
+
+#[test]
+fn test_role_detection_works() {
+    let mut pdf_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    pdf_path.push("tests/resources/test-1.pdf");
+
+    let lines = parse_pdf(pdf_path.to_str().unwrap()).expect("Failed to parse PDF.");
+    let blocks = ReflowEngine::process(lines);
+
+    // Count blocks by role
+    let mut role_counts = std::collections::HashMap::new();
+    for block in &blocks {
+        *role_counts.entry(format!("{:?}", block.role)).or_insert(0) += 1;
+    }
+
+    println!("Role distribution:");
+    for (role, count) in &role_counts {
+        println!("  {}: {}", role, count);
+    }
+
+    // Should have some paragraphs (not all Footer!)
+    let para_count = role_counts.get("Paragraph").unwrap_or(&0);
+    let footer_count = role_counts.get("Footer").unwrap_or(&0);
+    
+    assert!(
+        *para_count > 0,
+        "Should detect some Paragraph blocks, but found none"
+    );
+    
+    assert!(
+        *para_count > *footer_count,
+        "Should have more paragraphs ({}) than footers ({})",
+        para_count, footer_count
+    );
+}
