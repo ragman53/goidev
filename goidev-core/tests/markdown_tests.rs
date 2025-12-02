@@ -14,8 +14,10 @@ fn sample_blocks() -> Vec<Block> {
                 x2: 200.0,
                 y2: 740.0,
             },
-            role: BlockRole::Heading,
+            role: BlockRole::Heading { level: 1 },
             page_num: 1,
+            doc_page_num: None,
+            starts_new_paragraph: false,
         },
         Block {
             text: "This is the first paragraph of the document.".to_string(),
@@ -27,6 +29,8 @@ fn sample_blocks() -> Vec<Block> {
             },
             role: BlockRole::Paragraph,
             page_num: 1,
+            doc_page_num: None,
+            starts_new_paragraph: false,
         },
         Block {
             text: "Another paragraph on page two.".to_string(),
@@ -38,6 +42,8 @@ fn sample_blocks() -> Vec<Block> {
             },
             role: BlockRole::Paragraph,
             page_num: 2,
+            doc_page_num: None,
+            starts_new_paragraph: false,
         },
     ]
 }
@@ -55,7 +61,7 @@ fn test_blocks_to_markdown_roundtrip() {
     assert!(md.contains("source_hash: abc123"));
 
     // Verify metadata comments (now includes role=)
-    assert!(md.contains("<!-- goidev:page=1 bbox=72.0,720.0,200.0,740.0 role=heading -->"));
+    assert!(md.contains("<!-- goidev:page=1 bbox=72.0,720.0,200.0,740.0 role=heading1 -->"));
     assert!(md.contains("# Chapter One"));
     assert!(md.contains("<!-- goidev:page=2 bbox=72.0,720.0,400.0,734.0 role=paragraph -->"));
 
@@ -66,7 +72,7 @@ fn test_blocks_to_markdown_roundtrip() {
     assert_eq!(parsed_blocks.len(), 3);
 
     assert_eq!(parsed_blocks[0].text, "Chapter One");
-    assert_eq!(parsed_blocks[0].role, BlockRole::Heading);
+    assert_eq!(parsed_blocks[0].role, BlockRole::Heading { level: 1 });
     assert_eq!(parsed_blocks[0].page_num, 1);
     assert!((parsed_blocks[0].bbox.x1 - 72.0).abs() < 0.1);
 
@@ -103,7 +109,7 @@ More content here.
 
     // First block should be heading
     assert_eq!(blocks[0].text, "Welcome");
-    assert_eq!(blocks[0].role, BlockRole::Heading);
+    assert!(matches!(blocks[0].role, BlockRole::Heading { .. }));
     assert_eq!(blocks[0].page_num, 1); // synthetic
 
     // Synthetic bbox should have reasonable defaults

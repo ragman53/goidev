@@ -73,9 +73,13 @@ fn write_frontmatter(out: &mut String, meta: &MarkdownMeta) {
 
 fn write_block(out: &mut String, block: &Block) {
     // Metadata comment with role
-    let role_str = match block.role {
+    let role_str = match &block.role {
         BlockRole::Paragraph => "paragraph",
-        BlockRole::Heading => "heading",
+        BlockRole::Heading { level } => match level {
+            1 => "heading1",
+            2 => "heading2",
+            _ => "heading3",
+        },
         BlockRole::PageNumber => "pagenumber",
         BlockRole::Header => "header",
         BlockRole::Footer => "footer",
@@ -91,9 +95,15 @@ fn write_block(out: &mut String, block: &Block) {
         block.page_num, block.bbox.x1, block.bbox.y1, block.bbox.x2, block.bbox.y2, role_str
     ));
     // Content format based on role
-    match block.role {
-        BlockRole::Heading | BlockRole::Reference => {
+    match &block.role {
+        BlockRole::Heading { level: 1 } | BlockRole::Reference => {
             out.push_str(&format!("# {}\n\n", block.text.trim()))
+        }
+        BlockRole::Heading { level: 2 } => {
+            out.push_str(&format!("## {}\n\n", block.text.trim()))
+        }
+        BlockRole::Heading { level: _ } => {
+            out.push_str(&format!("### {}\n\n", block.text.trim()))
         }
         BlockRole::PageNumber | BlockRole::Header | BlockRole::Footer => {
             // Skip rendering these in output (they're metadata only)
@@ -202,15 +212,16 @@ impl ParseState {
     }
 
     fn start_heading(&mut self, level: HeadingLevel) {
-        self.current_role = Some(if level == HeadingLevel::H1 {
-            BlockRole::Heading
-        } else {
-            BlockRole::Paragraph
-        });
+        let lvl = match level {
+            HeadingLevel::H1 => 1,
+            HeadingLevel::H2 => 2,
+            _ => 3,
+        };
+        self.current_role = Some(BlockRole::Heading { level: lvl });
     }
 
     fn end_heading(&mut self) {
-        self.finish_block(BlockRole::Heading, HEADING_HEIGHT, HEADING_GAP);
+        self.finish_block(BlockRole::Heading { level: 2 }, HEADING_HEIGHT, HEADING_GAP);
     }
 
     fn start_paragraph(&mut self) {
@@ -271,6 +282,8 @@ impl ParseState {
             bbox,
             role,
             page_num: page,
+            doc_page_num: None,
+            starts_new_paragraph: false,
         });
     }
 }
@@ -292,7 +305,9 @@ fn parse_bbox(val: &str) -> Option<BBox> {
 fn parse_role(val: &str) -> Option<BlockRole> {
     match val.to_lowercase().as_str() {
         "paragraph" => Some(BlockRole::Paragraph),
-        "heading" => Some(BlockRole::Heading),
+        "heading" | "heading1" => Some(BlockRole::Heading { level: 1 }),
+        "heading2" => Some(BlockRole::Heading { level: 2 }),
+        "heading3" => Some(BlockRole::Heading { level: 3 }),
         "pagenumber" => Some(BlockRole::PageNumber),
         "header" => Some(BlockRole::Header),
         "footer" => Some(BlockRole::Footer),

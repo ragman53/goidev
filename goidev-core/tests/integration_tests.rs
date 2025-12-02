@@ -33,7 +33,7 @@ fn test_reflow_simple_pdf() {
 #[test]
 fn test_reflow_complex_pdf() {
     let mut pdf_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    pdf_path.push("tests/resources/test-1.pdf");
+    pdf_path.push("tests/resources/test-2.pdf");
 
     let lines = parse_pdf(pdf_path.to_str().unwrap()).expect("Failed to parse PDF.");
     let blocks = ReflowEngine::process(lines);
@@ -64,7 +64,7 @@ fn test_reflow_complex_pdf() {
 #[test]
 fn test_role_detection_works() {
     let mut pdf_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    pdf_path.push("tests/resources/test-1.pdf");
+    pdf_path.push("tests/resources/test-2.pdf");
 
     let lines = parse_pdf(pdf_path.to_str().unwrap()).expect("Failed to parse PDF.");
     let blocks = ReflowEngine::process(lines);

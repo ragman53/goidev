@@ -1,6 +1,7 @@
 //! Debug tool to inspect PDF parsing coordinates
 
 use goidev_core::pdf_parser::parse_pdf;
+use goidev_core::reflow_engine::ReflowEngine;
 use std::env;
 
 fn main() {
@@ -12,16 +13,54 @@ fn main() {
         "goidev-core/tests/resources/test.pdf"
     };
     
-    // Check for --raw flag for raw operator debugging
+    // Check for flags
     let raw_mode = args.iter().any(|a| a == "--raw");
     let state_mode = args.iter().any(|a| a == "--state");
+    let blocks_mode = args.iter().any(|a| a == "--blocks");
     
     if raw_mode {
         debug_raw_pdf(path);
     } else if state_mode {
         debug_with_state(path);
+    } else if blocks_mode {
+        debug_blocks(path);
     } else {
         debug_parsed_pdf(path);
+    }
+}
+
+/// Show reflowed blocks with new features
+fn debug_blocks(path: &str) {
+    println!("Reflowed blocks for: {}\n", path);
+    
+    let lines = parse_pdf(path).expect("Failed to parse PDF");
+    let blocks = ReflowEngine::process(lines);
+    
+    println!("Found {} blocks\n", blocks.len());
+    
+    // Group blocks by role for summary
+    let mut role_counts = std::collections::HashMap::new();
+    for block in &blocks {
+        *role_counts.entry(format!("{:?}", block.role)).or_insert(0) += 1;
+    }
+    
+    println!("Role distribution:");
+    for (role, count) in &role_counts {
+        println!("  {:20} : {}", role, count);
+    }
+    println!();
+    
+    // Show first 30 blocks with details
+    for (i, block) in blocks.iter().take(30).enumerate() {
+        let text_preview: String = block.text.chars().take(60).collect();
+        let doc_page = block.doc_page_num.as_deref().unwrap_or("-");
+        let indent = if block.starts_new_paragraph { "¶" } else { " " };
+        
+        println!(
+            "[{:3}] {} PDF={} Doc={:>3} | {:?}",
+            i, indent, block.page_num, doc_page, block.role
+        );
+        println!("      \"{}\"", text_preview);
     }
 }
 

@@ -99,7 +99,7 @@ fn test_detect_heading() {
     let blocks = ReflowEngine::process(lines);
     assert_eq!(blocks.len(), 2);
     assert_eq!(blocks[0].text, "Chapter 1");
-    assert_eq!(blocks[0].role, BlockRole::Heading);
+    assert!(matches!(blocks[0].role, BlockRole::Heading { .. }));
     assert_eq!(blocks[1].text, "It was a dark night.");
     assert_eq!(blocks[1].role, BlockRole::Paragraph);
 }
@@ -268,7 +268,7 @@ fn test_mixed_content_classification() {
     let blocks = ReflowEngine::process(lines);
     assert_eq!(blocks.len(), 6);
     assert_eq!(blocks[0].role, BlockRole::PageNumber);
-    assert_eq!(blocks[1].role, BlockRole::Heading);
+    assert!(matches!(blocks[1].role, BlockRole::Heading { .. }));
     assert_eq!(blocks[2].role, BlockRole::Paragraph);
     assert_eq!(blocks[3].role, BlockRole::Caption);
     assert_eq!(blocks[4].role, BlockRole::Footnote);
