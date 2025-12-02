@@ -15,22 +15,30 @@ Concise guidance for AI coding agents to be productive in this repo.
   - `markdown.rs`: serialize/deserialize blocks to Markdown (sidecar cache).
   - `dto.rs`: data transfer structs shared with UI (serializeable).
   - `font_utils.rs`: font metrics/helpers used by reflow.
+  - `nlp_engine.rs`: sentence extraction and word lemmatization (planned M4).
+  - `storage_layer.rs`: SQLite persistence for vocabulary (planned M4).
   - `lib.rs`: public API surface exposing parse + reflow + markdown.
 - Tests live in `goidev-core/tests/` with fixtures under `resources/`.
+- Cache location: `~/.cache/goidev/` (or `AppData\Local\goidev\cache\` on Windows).
 
 ## Data Flow (Parse-Once Architecture)
 
 ```
 PDF → parse_pdf() → Vec<TextLine> → ReflowEngine::process() → Vec<Block>
                                                                    ↓
-                                              blocks_to_markdown() → .goidev.md sidecar
+                                              blocks_to_markdown() → cache dir
                                                                    ↓
                                                          ReflowDocument → UI
+                                                                   ↓
+                                              User selects word → nlp_engine
+                                                                   ↓
+                                              WordEntry → storage_layer (SQLite)
 ```
 
-On subsequent opens, `open_document` checks the sidecar cache:
-- If `doc.pdf.goidev.md` exists and its `source_hash` matches the PDF's SHA-256, load from cache.
-- Otherwise, re-parse and regenerate the sidecar.
+On subsequent opens, `open_document` checks the cache directory:
+- Cache path: `{cache_dir}/goidev/{hash}_{filename}.goidev.md`
+- If cache exists and its `source_hash` matches the PDF's SHA-256, load from cache.
+- Otherwise, re-parse and regenerate the cache.
 
 External Markdown (no goidev metadata) is imported leniently with synthetic page/bbox defaults.
 
@@ -58,65 +66,50 @@ External Markdown (no goidev metadata) is imported leniently with synthetic page
 
 ## DTO Examples
 
-- `goidev-core/src/dto.rs` exposes the main serializable document contract used by the UI:
+`goidev-core/src/dto.rs` exposes the main serializable document contract used by the UI:
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReflowDocument {
-    pub doc_id: String,
-    pub title: String,
-    pub blocks: Vec<Block>,
+  pub doc_id: String,
+  pub title: String,
+  pub pages: Vec<Page>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Page {
+  pub page_num: u32,
+  pub blocks: Vec<Block>,
 }
 ```
 
-- `Block` (from `reflow_engine.rs`) contains layout + text used by the viewer:
+`Block` contains layout + text used by the viewer:
 
 ```rust
 pub struct Block {
-    pub text: String,
-    pub bbox: BBox,      // { x1, y1, x2, y2 }
-    pub role: BlockRole, // Semantic role (see below)
-    pub page_num: u32,
+  pub id: String,
+  pub text: String,
+  pub bbox: BBox,      // { x1, y1, x2, y2 }
+  pub role: BlockRole, // Semantic role
+  pub page_num: u32,
+  pub confidence: f32,
 }
 ```
 
-- `BlockRole` enum defines semantic block types:
+`BlockRole` defines semantic block types (Paragraph, Heading, Footer, etc.).
 
-```rust
-pub enum BlockRole {
-    Paragraph,   // Main body text
-    Heading,     // Section/document heading (large font)
-    PageNumber,  // Page number in header/footer
-    Header,      // Header content (top zone)
-    Footer,      // Footer content (bottom zone)
-    Footnote,    // Footnote text
-    Caption,     // Figure/table caption
-    Citation,    // Reference entry
-    Author,      // Author/affiliation
-    Abstract,    // Abstract section
-    Reference,   // References section header
-}
-```
+`PageGeometry` provides page dimensions for zone detection and should be preserved by `pdf_parser`.
 
-- `PageGeometry` (from `pdf_parser.rs`) provides page dimensions for zone detection:
-
-```rust
-pub struct PageGeometry {
-    pub width: f32,
-    pub height: f32,
-    pub origin_x: f32,
-    pub origin_y: f32,
-}
-```
-
-Keep these DTOs stable (Serde names/types); the frontend expects these fields.
+Keep DTOs stable (Serde names/types); the frontend depends on these fields.
 
 ## Tauri Commands (integration examples)
 
 - Commands are defined in `src-tauri/src/lib.rs` and exported via `tauri::generate_handler!`.
 - Key commands:
 
-  - `open_document(path: String) -> Result<ReflowDocument, String>` — opens PDF or Markdown; uses sidecar cache for PDFs.
+  - `open_document(path: String) -> Result<ReflowDocument, String>` — opens PDF or Markdown; uses cache directory for PDFs.
+  - `capture_word(request: CaptureWordRequest) -> CaptureWordResponse` — process UI selection, run `nlp_engine`, save to SQLite.
+  - `get_vocabulary() -> Vec<WordEntry>` — return saved vocabulary for SidePanel.
   - `save_document_markdown(blocks, dest_path, source_hash)` — explicitly save blocks to Markdown.
   - `greet(name: &str) -> String` — test helper.
 
@@ -125,8 +118,8 @@ Keep these DTOs stable (Serde names/types); the frontend expects these fields.
 ```javascript
 import { invoke } from '@tauri-apps/api/tauri'
 
-const doc = await invoke('open_document', { path: 'C:\\path\\to\\file.pdf' })
-console.log(doc.title, doc.blocks.length)
+const doc = await invoke('open_document', { path: 'C:\path\to\file.pdf' })
+console.log(doc.title, doc.pages.length)
 ```
 
 ## Role Detection System
@@ -157,12 +150,14 @@ Zone thresholds and patterns are defined as constants in `reflow_engine.rs`.
 
 ## File Landmarks
 
-- `goidev-core/src/pdf_parser.rs`: PDF parsing entry point.
-- `goidev-core/src/reflow_engine.rs`: main layout/merge logic.
-- `goidev-core/src/markdown.rs`: sidecar cache serialization/deserialization.
-- `goidev-core/tests/markdown_tests.rs`: roundtrip and lenient import tests.
-- `src-tauri/src/lib.rs`: Tauri command definitions with cache logic.
-- `src-tauri/tauri.conf.json`: window/capabilities config.
+ - `goidev-core/src/pdf_parser.rs`: PDF parsing entry point.
+ - `goidev-core/src/reflow_engine.rs`: main layout/merge logic.
+ - `goidev-core/src/markdown.rs`: cache serialization/deserialization.
+ - `goidev-core/src/nlp_engine.rs`: sentence + tokenization + stemming/lemmatization (Milestone 4).
+ - `goidev-core/src/storage_layer.rs`: SQLite persistence for vocabulary (Milestone 4).
+ - `goidev-core/tests/markdown_tests.rs`: roundtrip and lenient import tests.
+ - `src-tauri/src/lib.rs`: Tauri command definitions with cache logic (includes `capture_word`).
+ - `src-tauri/tauri.conf.json`: window/capabilities config.
 
 ## Working Rules (Project-Specific)
 

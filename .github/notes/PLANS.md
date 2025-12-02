@@ -17,9 +17,13 @@ Users can open a local PDF, extract text with position and font size, reflow it 
 - [x] (2025-11-20) **Encoding Fixes**: Resolved PDF text encoding issues (custom ligatures, special quotes, WinAnsiEncoding) with comprehensive `decode_pdf_str` function.
 - [x] (2025-11-20) **Encoding Refactor**: Replaced hardcoded `decode_pdf_str` with generic `FontEncoding` system (ToUnicode, Encoding/Differences, WinAnsi fallback).
 - [x] Milestone 3: Basic UI & Integration — Tauri command to invoke reflow; Leptos UI to render blocks.
-- [ ] Milestone 4: storage_layer — DB schema and functions to persist words and contexts (tests).
-- [ ] Milestone 5: nlp_engine — extract base form and sentence from a block (tests).
-- [ ] Milestone 6: Word Collection — wire UI selection to NLP & Storage; Side Panel implementation.
+- [x] (2025-12-01) **Enhanced Reflow**: Added heading levels (L1 ≥16pt, L2 ≥13pt), doc_page_num extraction, paragraph indentation detection.
+- [x] (2025-12-01) **Role Detection**: Implemented multi-stage block classification (Header/Footer/Footnote/Caption/Citation/PageNumber).
+- [x] (2025-12-02) **File Selection UI**: Added Browse button with tauri-plugin-dialog for PDF/Markdown file picker.
+- [x] (2025-12-02) **Cache Directory Fix**: Moved cache files from sidecar to `~/.cache/goidev/` (AppData on Windows) to prevent file watcher triggers.
+- [x] (2025-12-02) **23 Tests Passing**: Comprehensive test coverage for pdf_parser, reflow_engine, markdown roundtrip.
+- [ ] Milestone 4: Word & Sentence Capture — NLP engine + Storage layer + UI selection for language learning.
+- [ ] Milestone 5: Side Panel — vocabulary list display, word review, spaced repetition hooks.
 - [ ] Polish: logging, perf pass, docs, and markdown exporter for RAG.
 
 ## Surprises & Discoveries
@@ -186,8 +190,122 @@ Concrete steps:
 
 ## Next Steps (after M1)
 
-- Build a minimal Tauri viewer that renders blocks (M3).
-- Add storage_layer (M4) and nlp_engine (M5).
+- Build a minimal Tauri viewer that renders blocks (M3). ✅ DONE
+- Add storage_layer (M4) and nlp_engine (M5). ← **CURRENT FOCUS**
 - Implement word collection flow (M6).
 
-Keep this document current. Update Progress, Decision Log, Surprises, and Outcomes as you complete steps.
+---
+
+## Milestone 4 — Word & Sentence Capture (Language Learning Core)
+
+**Goal**: Enable users to select words/sentences from reflowed PDF content and save them to a local vocabulary database for language learning.
+
+**Learning context**: Mode L1 (Guided Implementation) — focus on NLP patterns, SQLite schema design, and UI text selection.
+
+### Data Contracts (New)
+
+**WordEntry** (stored in SQLite):
+```rust
+pub struct WordEntry {
+    pub id: i64,
+    pub word: String,           // Original selected word
+    pub base_form: String,      // Lemmatized form (e.g., "running" → "run")
+    pub sentence: String,       // Full sentence context
+    pub source_doc: String,     // Document title/path
+    pub page_num: u32,          // Page where captured
+    pub created_at: i64,        // Unix timestamp
+    pub review_count: u32,      // For spaced repetition
+    pub next_review: Option<i64>, // Next review timestamp
+}
+```
+
+**CaptureWordRequest** (UI → Backend):
+```rust
+pub struct CaptureWordRequest {
+    pub word: String,
+    pub block_text: String,     // Full block text for sentence extraction
+    pub doc_id: String,
+    pub page_num: u32,
+}
+```
+
+**CaptureWordResponse** (Backend → UI):
+```rust
+pub struct CaptureWordResponse {
+    pub success: bool,
+    pub entry: Option<WordEntry>,
+    pub error: Option<String>,
+}
+```
+
+### Architecture
+
+```
+User clicks word in UI
+        ↓
+ReflowViewer detects selection → CaptureWordRequest
+        ↓
+Tauri command: capture_word()
+        ↓
+┌─────────────────────────────────────────┐
+│ nlp_engine.rs                           │
+│  - extract_sentence(block_text, word)   │
+│  - get_base_form(word)                  │
+└─────────────────────────────────────────┘
+        ↓
+┌─────────────────────────────────────────┐
+│ storage_layer.rs                        │
+│  - save_word(WordEntry)                 │
+│  - get_vocabulary() → Vec<WordEntry>    │
+│  - update_review(id, next_review)       │
+└─────────────────────────────────────────┘
+        ↓
+CaptureWordResponse → UI (SidePanel updates)
+```
+
+### Implementation Steps
+
+1. **nlp_engine.rs** (Pure Rust NLP):
+   - Sentence boundary detection using `unicode_segmentation`
+   - Word tokenization with punctuation handling
+   - Base form extraction using `rust-stemmers` (Snowball algorithm)
+   - Language detection hint (optional)
+
+2. **storage_layer.rs** (SQLite):
+   - Schema: `words` table with fields above
+   - Indices on `base_form`, `created_at`, `next_review`
+   - CRUD operations: save, get_all, get_by_base_form, update_review
+   - Use `rusqlite` with bundled SQLite
+
+3. **UI Text Selection**:
+   - Enable word selection on click/tap in ReflowViewer
+   - Highlight selected word
+   - Show sentence context in tooltip/popup
+   - "Save" button to trigger capture
+
+4. **SidePanel Component**:
+   - Display vocabulary list
+   - Search/filter by word
+   - Show review status
+   - Export to Anki/CSV (future)
+
+### Acceptance Criteria
+
+- [ ] User can click a word in the viewer to select it
+- [ ] Selected word's sentence is automatically extracted
+- [ ] Base form (lemma) is computed for the word
+- [ ] Word + context saved to SQLite database
+- [ ] SidePanel shows captured vocabulary
+- [ ] 5+ unit tests for nlp_engine
+- [ ] 3+ integration tests for storage_layer
+
+### Dependencies to Add
+
+```toml
+# goidev-core/Cargo.toml
+unicode-segmentation = "1.12"
+rust-stemmers = "1.2"
+rusqlite = { version = "0.37", features = ["bundled"] }
+```
+
+---

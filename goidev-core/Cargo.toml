@@ -9,3 +9,9 @@ regex = "1.10"
 serde = { version = "1.0", features = ["derive"] }
 pulldown-cmark = "0.13"
 sha2 = "0.10"
+dirs = "6"
+
+# NLP and local-storage dependencies (Milestone 4)
+unicode-segmentation = "1.12"
+rust-stemmers = "1.2"
+rusqlite = { version = "0.37", features = ["bundled"] }

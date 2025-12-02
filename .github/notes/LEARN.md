@@ -117,3 +117,57 @@ Failing to detect this leads to negative gap calculations, preventing correct pa
 
 *   **Explicit Colors**: When setting a light background (e.g., `#f8f9fa` for alternating pages), you must explicitly set the text `color` (e.g., `#333333`). Relying on browser defaults or inherited themes (especially in dark mode capable apps) can result in invisible white-on-white text.
 *   **Visual Separation**: Alternating background colors for pages is a simple but effective way to maintain user orientation in a reflowed (continuous scroll) view.
+
+---
+
+## M4: Word & Sentence Capture (Language Learning)
+
+### 9. Sentence Boundary Detection
+
+Extracting sentences from text is non-trivial. Simple period-splitting fails for:
+- Abbreviations: "Dr. Smith went home."
+- Decimal numbers: "The price is $3.50 per unit."
+- Ellipses: "Wait... what happened?"
+
+**Approach**: Use `unicode_segmentation` crate which implements UAX#29 (Unicode Text Segmentation). This handles most edge cases but may need post-processing for domain-specific text.
+
+### 10. Lemmatization vs. Stemming
+
+| Technique | Output | Example | Use Case |
+|:----------|:-------|:--------|:---------|
+| **Stemming** | Root form (may not be a word) | "running" → "run", "studies" → "studi" | Search indexing, fast processing |
+| **Lemmatization** | Dictionary base form | "running" → "run", "studies" → "study" | Language learning, readability |
+
+**For GOIDEV**: We use `rust-stemmers` (Snowball algorithm) as a starting point. It's fast and handles most cases. For better accuracy, we may later add dictionary lookup.
+
+### 11. SQLite for Local-First Storage
+
+**Why SQLite?**
+- Zero configuration, embedded database
+- Single file storage (easy backup/sync)
+- ACID compliant for data integrity
+- Full SQL support for queries
+
+**Schema Design Principles**:
+- Use `INTEGER PRIMARY KEY` for auto-increment IDs
+- Store timestamps as Unix epoch (i64) for easy comparison
+- Add indices on frequently queried columns (`base_form`, `next_review`)
+- Use `TEXT` for Unicode strings (SQLite handles UTF-8 natively)
+
+### 12. Spaced Repetition Basics
+
+For vocabulary retention, we'll implement a simple SM-2 inspired algorithm:
+
+```
+if correct:
+    interval = interval * ease_factor  # Increase interval
+    ease_factor += 0.1
+else:
+    interval = 1  # Reset to 1 day
+    ease_factor = max(1.3, ease_factor - 0.2)
+```
+
+Key fields:
+- `review_count`: How many times reviewed
+- `next_review`: When to show again (timestamp)
+- `ease_factor`: Per-word difficulty multiplier
