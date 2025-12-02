@@ -39,6 +39,54 @@ Concise guidance for AI coding agents to be productive in this repo.
 - The Leptos viewer (`src/components/reflow_viewer.rs`) renders reflowed chunks from DTOs.
 - Keep serialization stable (Serde) across the boundary; avoid breaking DTO field names.
 
+## DTO Examples
+
+- `goidev-core/src/dto.rs` exposes the main serializable document contract used by the UI. Example (simplified):
+
+```rust
+use goidev_core::reflow_engine::Block;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReflowDocument {
+		pub doc_id: String,
+		pub title: String,
+		pub blocks: Vec<Block>,
+}
+```
+
+- `Block` (from `reflow_engine.rs`) contains layout + text used by the viewer:
+
+```rust
+pub struct Block {
+		pub text: String,
+		pub bbox: BBox,      // { x1,y1,x2,y2 }
+		pub role: BlockRole, // Paragraph | Heading
+		pub page_num: u32,
+}
+```
+
+Keep these DTOs stable (Serde names/types); the frontend expects these fields.
+
+## Tauri Commands (integration examples)
+
+- Commands are defined in `src-tauri/src/lib.rs` and exported to the frontend via `tauri::generate_handler!`.
+- Two useful commands to know:
+
+	- `greet(name: &str) -> String` — test helper exposed as a Tauri command.
+	- `open_document(path: String) -> Result<ReflowDocument, String>` — parses a PDF, runs the reflow engine, and returns a `ReflowDocument` DTO.
+
+- Example frontend call (JS/TS using `@tauri-apps/api`):
+
+```javascript
+import { invoke } from '@tauri-apps/api/tauri'
+
+// open a PDF and get a ReflowDocument
+const doc = await invoke('open_document', { path: 'C:\\path\\to\\file.pdf' })
+console.log(doc.title, doc.blocks.length)
+```
+
+Note: the Rust handler creates the `ReflowDocument` and assigns a `doc_id` (UUID) before returning.
+
 ## File Landmarks
 
 - `goidev-core/src/pdf_parser.rs`: entry for parsing; look here when changing how PDFs are ingested.
