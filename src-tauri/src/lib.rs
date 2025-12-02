@@ -1,4 +1,6 @@
 use goidev_core::dto::ReflowDocument;
+use goidev_core::nlp_engine;
+use goidev_core::storage_layer;
 use goidev_core::markdown::{
     hash_file, is_cache_valid, load_markdown, save_markdown, sidecar_path, MarkdownMeta,
 };
@@ -116,6 +118,79 @@ fn open_document(path: String) -> Result<ReflowDocument, String> {
     
     println!("[open_document] SUCCESS - returning document");
     Ok(doc)
+}
+
+#[derive(serde::Deserialize)]
+struct CaptureWordRequest {
+    pub word: String,
+    pub block_text: String,
+    pub doc_id: String,
+    pub page_num: u32,
+}
+
+#[derive(serde::Serialize)]
+struct CaptureWordResponse {
+    pub success: bool,
+    pub entry: Option<storage_layer::WordEntry>,
+    pub error: Option<String>,
+}
+
+/// Capture a selected word from the UI, extract sentence context and base form, and persist to SQLite.
+#[tauri::command]
+fn capture_word(request: CaptureWordRequest) -> Result<CaptureWordResponse, String> {
+    println!("[capture_word] request: {} (doc {}, page {})", request.word, request.doc_id, request.page_num);
+
+    // Extract sentence context
+    let sentence = nlp_engine::sentence_for_word(&request.block_text, &request.word)
+        .unwrap_or_else(|| request.block_text.clone());
+
+    // Base-form (stem) extraction
+    let base_form = nlp_engine::get_base_form(&request.word);
+
+    // Determine DB path under platform data dir: {data_dir}/goidev/vocab.db
+    let db_path = if let Some(mut dir) = dirs::data_local_dir() {
+        dir.push("goidev");
+        std::fs::create_dir_all(&dir).ok();
+        dir.push("vocab.db");
+        dir
+    } else {
+        // Fallback: local file
+        let mut p = std::path::PathBuf::from("./goidev_vocab.db");
+        p
+    };
+
+    // Open / initialize DB
+    let conn = match storage_layer::init_db(db_path.to_str().unwrap_or("./goidev_vocab.db")) {
+        Ok(c) => c,
+        Err(e) => {
+            let msg = format!("failed to open db: {}", e);
+            println!("[capture_word] {}", msg);
+            return Ok(CaptureWordResponse { success: false, entry: None, error: Some(msg) });
+        }
+    };
+
+    // Build WordEntry and persist
+    let entry = storage_layer::WordEntry {
+        id: None,
+        word: request.word.clone(),
+        base_form: base_form.clone(),
+        sentence: sentence.clone(),
+        source_doc: Some(request.doc_id.clone()),
+        page_num: Some(request.page_num),
+        created_at: 0,
+        review_count: 0,
+        next_review: None,
+        ease_factor: 2.5,
+    };
+
+    match storage_layer::save_word(&conn, entry) {
+        Ok(saved) => Ok(CaptureWordResponse { success: true, entry: Some(saved), error: None }),
+        Err(e) => {
+            let msg = format!("failed to save word: {}", e);
+            println!("[capture_word] {}", msg);
+            Ok(CaptureWordResponse { success: false, entry: None, error: Some(msg) })
+        }
+    }
 }
 
 /// Explicitly save current document blocks to a Markdown file.

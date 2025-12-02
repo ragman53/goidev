@@ -1708,6 +1708,7 @@ dependencies = [
 name = "goidev"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "goidev-core",
  "serde",
  "serde_json",

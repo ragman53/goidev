@@ -41,7 +41,7 @@ pub fn sentence_for_word(block_text: &str, word: &str) -> Option<String> {
     let word_lower = word.to_lowercase();
     for s in sentences {
         // Tokenize and lower-case tokens for comparison
-        for tok in UnicodeSegmentation::unicode_words(&s) {
+        for tok in UnicodeSegmentation::unicode_words(s.as_str()) {
             if tok.to_lowercase() == word_lower {
                 return Some(s);
             }
