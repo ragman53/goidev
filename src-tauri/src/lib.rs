@@ -155,8 +155,7 @@ fn capture_word(request: CaptureWordRequest) -> Result<CaptureWordResponse, Stri
         dir
     } else {
         // Fallback: local file
-        let mut p = std::path::PathBuf::from("./goidev_vocab.db");
-        p
+        std::path::PathBuf::from("./goidev_vocab.db")
     };
 
     // Open / initialize DB
@@ -221,7 +220,8 @@ pub fn run() {
             greet,
             open_document,
             save_document_markdown,
-            select_file
+            select_file,
+            capture_word
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

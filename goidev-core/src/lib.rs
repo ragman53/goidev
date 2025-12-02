@@ -7,4 +7,6 @@ pub mod pdf_parser;
 pub mod pdf_state;
 pub mod reflow_engine;
 pub mod nlp_engine;
+
+#[cfg(feature = "storage")]
 pub mod storage_layer;

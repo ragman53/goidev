@@ -23,7 +23,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-goidev-core = { path = "../goidev-core" }
+goidev-core = { path = "../goidev-core", features = ["storage"] }
 uuid = { version = "1.10", features = ["v4"] }
 dirs = "6"
 
