@@ -91,6 +91,69 @@ button {
   margin-right: 5px;
 }
 
+#path-input {
+  margin-right: 5px;
+  min-width: 400px;
+}
+
+.file-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.file-selection .row {
+  display: flex;
+  gap: 5px;
+}
+
+.browse-button {
+  background-color: #396cd8;
+  color: white;
+  padding: 0.6em 2em;
+}
+
+.browse-button:hover {
+  background-color: #2d5bb8;
+  border-color: #2d5bb8;
+}
+
+.browse-button:disabled {
+  background-color: #6a8fd8;
+}
+
+.status {
+  color: #396cd8;
+  font-size: 0.9em;
+  margin: 5px 0;
+}
+
+.error {
+  color: #dc3545;
+  font-size: 0.9em;
+  margin: 5px 0;
+}
+
+.loading-indicator {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+input:disabled {
+  opacity: 0.6;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;

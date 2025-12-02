@@ -1,0 +1,5 @@
+# Ignore markdown cache files
+*.goidev.md
+
+# Ignore test resources (PDF files that may be parsed)
+../goidev-core/tests/resources/

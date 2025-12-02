@@ -15,40 +15,80 @@ fn greet(name: &str) -> String {
 /// Open a document (PDF or Markdown).
 /// - For PDFs: check sidecar cache; if valid, load from cache; else parse, reflow, cache.
 /// - For Markdown: load directly.
+/// 
+/// This runs synchronously on a blocking thread pool to avoid issues with panics.
 #[tauri::command]
-async fn open_document(path: String) -> Result<ReflowDocument, String> {
+fn open_document(path: String) -> Result<ReflowDocument, String> {
+    println!("[open_document] START: {}", path);
+    
     let p = Path::new(&path);
+    
+    // Validate file exists
+    if !p.exists() {
+        println!("[open_document] ERROR: File not found");
+        return Err(format!("File not found: {}", path));
+    }
+    
     let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
+    println!("[open_document] Extension: {}", ext);
 
     let (blocks, title) = match ext.to_lowercase().as_str() {
         "md" | "markdown" => {
+            println!("[open_document] Loading markdown file");
             // Direct Markdown load (lenient import)
-            let (blocks, _meta) = load_markdown(&path).map_err(|e| e.to_string())?;
+            let (blocks, _meta) = load_markdown(&path).map_err(|e| {
+                println!("[open_document] ERROR loading markdown: {}", e);
+                format!("Failed to load markdown: {}", e)
+            })?;
             let title = p
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("Untitled")
                 .to_string();
+            println!("[open_document] Loaded {} blocks from markdown", blocks.len());
             (blocks, title)
         }
-        _ => {
-            // Assume PDF (or other parseable format)
+        "pdf" => {
+            // PDF file handling
             let sidecar = sidecar_path(&path);
+            println!("[open_document] Sidecar path: {:?}", sidecar);
 
             let blocks = if sidecar.exists() && is_cache_valid(p, &sidecar) {
-                // Cache hit
-                let (cached_blocks, _) = load_markdown(&sidecar).map_err(|e| e.to_string())?;
+                // Cache hit - load from sidecar
+                println!("[open_document] Cache hit - loading from sidecar");
+                let (cached_blocks, _) = load_markdown(&sidecar).map_err(|e| {
+                    println!("[open_document] ERROR loading cache: {}", e);
+                    format!("Failed to load cache: {}", e)
+                })?;
+                println!("[open_document] Loaded {} blocks from cache", cached_blocks.len());
                 cached_blocks
             } else {
                 // Cache miss: parse PDF, reflow, save sidecar
-                let lines = parse_pdf(&path).map_err(|e| e.to_string())?;
+                println!("[open_document] Cache miss - parsing PDF");
+                
+                let lines = match parse_pdf(&path) {
+                    Ok(lines) => {
+                        println!("[open_document] Parsed {} text lines", lines.len());
+                        lines
+                    },
+                    Err(e) => {
+                        println!("[open_document] ERROR parsing PDF: {}", e);
+                        return Err(format!("Failed to parse PDF: {}", e));
+                    }
+                };
+                
+                println!("[open_document] Processing lines into blocks...");
                 let fresh_blocks = ReflowEngine::process(lines);
+                println!("[open_document] Generated {} blocks", fresh_blocks.len());
 
                 // Compute source hash and save sidecar
+                println!("[open_document] Computing hash and saving cache...");
                 let source_hash = hash_file(&path).ok();
                 let meta = MarkdownMeta { source_hash };
-                if let Err(e) = save_markdown(&fresh_blocks, &meta, &sidecar) {
-                    eprintln!("Warning: failed to write sidecar cache: {}", e);
+                
+                match save_markdown(&fresh_blocks, &meta, &sidecar) {
+                    Ok(_) => println!("[open_document] Saved cache to: {:?}", sidecar),
+                    Err(e) => eprintln!("[open_document] Warning: failed to write sidecar cache: {}", e),
                 }
 
                 fresh_blocks
@@ -61,13 +101,21 @@ async fn open_document(path: String) -> Result<ReflowDocument, String> {
                 .to_string();
             (blocks, title)
         }
+        _ => {
+            println!("[open_document] ERROR: Unsupported file type");
+            return Err(format!("Unsupported file type: .{}", ext));
+        }
     };
 
-    Ok(ReflowDocument {
+    println!("[open_document] Creating ReflowDocument with {} blocks", blocks.len());
+    let doc = ReflowDocument {
         doc_id: uuid::Uuid::new_v4().to_string(),
         title,
         blocks,
-    })
+    };
+    
+    println!("[open_document] SUCCESS - returning document");
+    Ok(doc)
 }
 
 /// Explicitly save current document blocks to a Markdown file.
@@ -81,14 +129,24 @@ async fn save_document_markdown(
     save_markdown(&blocks, &meta, &dest_path).map_err(|e| e.to_string())
 }
 
+/// Select a file using the native file dialog.
+/// Returns the selected file path, or None if cancelled.
+#[tauri::command]
+async fn select_file() -> Option<String> {
+    // Dialog is handled via JS API in the frontend
+    None
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             open_document,
-            save_document_markdown
+            save_document_markdown,
+            select_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
