@@ -2,7 +2,7 @@
 target = "./index.html"
 
 [watch]
-ignore = ["./src-tauri", "./target", "./goidev-core/tests"]
+ignore = ["./src-tauri", "./goidev-core/tests"]
 
 [serve]
 port = 1420

@@ -152,19 +152,31 @@ pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
                                             page_num,
                                         };
                                         let args = to_value(&req).unwrap_or(JsValue::NULL);
-                                        if let Ok(result) = invoke("capture_word", args).await {
-                                            if let Ok(resp) = serde_wasm_bindgen::from_value::<CaptureWordResponse>(result) {
-                                                if resp.success {
-                                                    set_captured_word.set(Some(selected_word.clone()));
-                                                    set_pending_capture.set(None);
-                                                    // refresh vocab list after capture
-                                                    load_vocab();
-                                                    spawn_local(async move {
-                                                        gloo_timers::future::TimeoutFuture::new(2000).await;
-                                                        set_captured_word.set(None);
-                                                    });
-                                                    return;
+                                        match invoke("capture_word", args).await {
+                                            Ok(result) => match serde_wasm_bindgen::from_value::<CaptureWordResponse>(result) {
+                                                Ok(resp) => {
+                                                    if resp.success {
+                                                        set_captured_word.set(Some(selected_word.clone()));
+                                                        set_pending_capture.set(None);
+                                                        // refresh vocab list after capture
+                                                        load_vocab();
+                                                        spawn_local(async move {
+                                                            gloo_timers::future::TimeoutFuture::new(2000).await;
+                                                            set_captured_word.set(None);
+                                                        });
+                                                        return;
+                                                    } else {
+                                                        // Backend returned success=false; log error if present
+                                                        let msg = resp.error.unwrap_or_else(|| "capture returned success=false".to_string());
+                                                        web_sys::console::error_1(&JsValue::from_str(&format!("capture_word failed: {}", msg)));
+                                                    }
                                                 }
+                                                Err(err) => {
+                                                    web_sys::console::error_1(&JsValue::from_str(&format!("failed to deserialize capture response: {:?}", err)));
+                                                }
+                                            },
+                                            Err(err) => {
+                                                web_sys::console::error_1(&JsValue::from_str(&format!("invoke capture_word error: {:?}", err)));
                                             }
                                         }
                                         // On failure, just close the menu
@@ -288,16 +300,22 @@ fn render_block(
         let block_text = Arc::clone(&block_text);
         let set_pending_capture = set_pending_capture.clone();
         move |ev: MouseEvent| {
-            ev.prevent_default();
+            // 1. 現在の選択範囲を取得
             let selected = web_sys::window()
                 .and_then(|w| w.get_selection().ok().flatten())
                 .map(|s| s.to_string())
                 .map(|js| js.as_string().unwrap_or_default())
                 .unwrap_or_default();
 
+            // 2. 選択範囲が空（または空白のみ）の場合は、独自の処理をせず
+            //    return することで、ブラウザ標準の右クリックメニューを表示させる。
+            //    これにより「クリックが効かない」現象を防ぐ。
             if selected.trim().is_empty() {
                 return;
             }
+
+            // 3. 有効な選択がある場合のみ、デフォルト動作（標準メニュー）を無効化して自前のメニューを出す
+            ev.prevent_default();
 
             set_pending_capture.set(Some(PendingCapture {
                 word: selected,
@@ -309,7 +327,7 @@ fn render_block(
             }));
         }
     };
-
+    
     match block.role {
         BlockRole::Heading { level } => {
             let style = match level {

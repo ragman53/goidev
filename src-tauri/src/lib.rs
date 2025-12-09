@@ -161,6 +161,7 @@ struct CaptureWordResponse {
 /// Capture a selected word from the UI, extract sentence context and base form, and persist to SQLite.
 #[tauri::command]
 fn capture_word(request: CaptureWordRequest) -> Result<CaptureWordResponse, String> {
+    println!("[capture_word] Processing: '{}'", request.word);
     println!(
         "[capture_word] request: {} (doc {}, page {})",
         request.word, request.doc_id, request.page_num
@@ -168,7 +169,10 @@ fn capture_word(request: CaptureWordRequest) -> Result<CaptureWordResponse, Stri
 
     // Extract sentence context
     let sentence = nlp_engine::sentence_for_word(&request.block_text, &request.word)
-        .unwrap_or_else(|| request.block_text.clone());
+        .unwrap_or_else(|| {
+             println!("[capture_word] Warning: Exact sentence match failed for '{}', using block text.", request.word);
+             request.block_text.clone()
+        });
 
     // Base-form (stem) extraction
     let base_form = nlp_engine::get_base_form(&request.word);
