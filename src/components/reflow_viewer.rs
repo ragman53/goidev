@@ -7,7 +7,7 @@ use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen::to_value;
 use std::collections::BTreeMap;
-use std::rc::Rc;
+use std::sync::Arc;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 
@@ -24,24 +24,29 @@ pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
     let (captured_word, set_captured_word) = signal(Option::<String>::None);
     let (vocab_entries, set_vocab_entries) = signal(Vec::<VocabularyEntry>::new());
     let (vocab_panel_open, set_vocab_panel_open) = signal(false);
+    let (pending_capture, set_pending_capture) = signal(Option::<PendingCapture>::None);
+
+    let load_vocab = {
+        let set_vocab_entries = set_vocab_entries;
+        move || {
+            spawn_local(async move {
+                if let Ok(result) = invoke("get_vocabulary", JsValue::NULL).await {
+                    if let Ok(entries) = serde_wasm_bindgen::from_value::<Vec<VocabularyEntry>>(result) {
+                        set_vocab_entries.set(entries);
+                    }
+                }
+            });
+        }
+    };
 
     let toggle_vocab_panel = {
-        let vocab_panel_open = vocab_panel_open.clone();
-        let set_vocab_panel_open = set_vocab_panel_open.clone();
-        let set_vocab_entries = set_vocab_entries.clone();
+        let vocab_panel_open = vocab_panel_open;
+        let set_vocab_panel_open = set_vocab_panel_open;
+        let load_vocab = load_vocab;
         move |_| {
             let open = vocab_panel_open.get();
             if !open {
-                let set_vocab_entries = set_vocab_entries.clone();
-                spawn_local(async move {
-                    if let Ok(result) = invoke("get_vocabulary", JsValue::NULL).await {
-                        if let Ok(entries) =
-                            serde_wasm_bindgen::from_value::<Vec<VocabularyEntry>>(result)
-                        {
-                            set_vocab_entries.set(entries);
-                        }
-                    }
-                });
+                load_vocab();
             }
             set_vocab_panel_open.set(!open);
         }
@@ -65,7 +70,7 @@ pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
         map.into_values().collect()
     };
 
-    let doc_id = Rc::new(document.doc_id.clone());
+    let doc_id = Arc::new(document.doc_id.clone());
 
     view! {
         <div class="reflow-viewer">
@@ -77,7 +82,7 @@ pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
             </div>
             {move || {
                 if vocab_panel_open.get() {
-                    let entries = vocab_entries.get().clone();
+                    let entries = vocab_entries.get();
                     view! {
                         <div class="vocab-panel" style="position: fixed; top: 90px; right: 20px; width: 340px; max-height: 70vh; overflow-y: auto; background: white; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 15px 40px rgba(0,0,0,0.15); padding: 16px; z-index: 1000;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -108,6 +113,74 @@ pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
                     }.into_any()
                 }
             }}
+            {move || pending_capture.get().map(|pending| {
+                let set_pending_capture = set_pending_capture;
+                let set_captured_word = set_captured_word;
+                let load_vocab = load_vocab;
+                let word = pending.word;
+                let block_text = pending.block_text;
+                let doc_id = pending.doc_id;
+                let page_num = pending.page_num;
+                let top = pending.y;
+                let left = pending.x;
+                view! {
+                    <div
+                        class="capture-menu-overlay"
+                        style="position: fixed; inset: 0; z-index: 1100;"
+                        on:click=move |_| set_pending_capture.set(None)
+                    >
+                        <div
+                            class="capture-menu"
+                            style=format!("position: fixed; top: {}px; left: {}px; background: white; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); padding: 8px; min-width: 160px;", top, left)
+                            on:click=move |ev| ev.stop_propagation()
+                        >
+                            <button
+                                type="button"
+                                style="width: 100%; padding: 8px 10px; background: #007acc; color: white; border: none; border-radius: 6px; cursor: pointer; margin-bottom: 6px;"
+                                on:click=move |_| {
+                                    let set_captured_word = set_captured_word;
+                                    let set_pending_capture = set_pending_capture;
+                                    let load_vocab = load_vocab;
+                                    let selected_word = word.clone();
+                                    let selected_block = block_text.clone();
+                                    let selected_doc = doc_id.clone();
+                                    spawn_local(async move {
+                                        let req = CaptureWordRequest {
+                                            word: selected_word.clone(),
+                                            block_text: selected_block.as_ref().to_string(),
+                                            doc_id: selected_doc.as_ref().to_string(),
+                                            page_num,
+                                        };
+                                        let args = to_value(&req).unwrap_or(JsValue::NULL);
+                                        if let Ok(result) = invoke("capture_word", args).await {
+                                            if let Ok(resp) = serde_wasm_bindgen::from_value::<CaptureWordResponse>(result) {
+                                                if resp.success {
+                                                    set_captured_word.set(Some(selected_word.clone()));
+                                                    set_pending_capture.set(None);
+                                                    // refresh vocab list after capture
+                                                    load_vocab();
+                                                    spawn_local(async move {
+                                                        gloo_timers::future::TimeoutFuture::new(2000).await;
+                                                        set_captured_word.set(None);
+                                                    });
+                                                    return;
+                                                }
+                                            }
+                                        }
+                                        // On failure, just close the menu
+                                        set_pending_capture.set(None);
+                                    });
+                                }
+                            >{"Catch the word"}</button>
+                            <button
+                                type="button"
+                                style="width: 100%; padding: 6px 10px; background: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 6px; cursor: pointer;"
+                                on:click=move |_| set_pending_capture.set(None)
+                            >{"Cancel"}</button>
+                        </div>
+                    </div>
+                }
+            })}
             // Capture feedback toast
             {move || captured_word.get().map(|word| view! {
                 <div class="capture-toast" style="position: fixed; bottom: 20px; right: 20px; background: #4CAF50; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000; animation: fadeIn 0.3s;">
@@ -134,7 +207,11 @@ pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
                                 {page_label}
                             </div>
                             {page_group.blocks.into_iter().map(|block| {
-                                render_block(block, doc_id.clone(), set_captured_word)
+                                render_block(
+                                    block,
+                                    doc_id.clone(),
+                                    set_pending_capture,
+                                )
                             }).collect_view()}
                         </div>
                     }
@@ -181,18 +258,37 @@ struct VocabularyEntry {
     ease_factor: f32,
 }
 
-/// Helper to create the capture word handler
-fn make_capture_handler(
-    doc_id: Rc<String>,
-    block_text: Rc<String>,
+#[derive(Clone)]
+struct PendingCapture {
+    word: String,
+    block_text: Arc<String>,
+    doc_id: Arc<String>,
     page_num: u32,
-    set_captured: WriteSignal<Option<String>>,
-) -> impl Fn() + Clone + 'static {
-    move || {
-        let doc = Rc::clone(&doc_id);
-        let text = Rc::clone(&block_text);
-        let set_word = set_captured;
-        spawn_local(async move {
+    x: i32,
+    y: i32,
+}
+
+fn render_block(
+    block: Block,
+    doc_id: Arc<String>,
+    set_pending_capture: WriteSignal<Option<PendingCapture>>,
+) -> AnyView {
+    // Add extra margin-top for paragraphs that start a new indented paragraph
+    let paragraph_indent = if block.starts_new_paragraph {
+        "text-indent: 1.5em;"
+    } else {
+        ""
+    };
+
+    let page_num = block.page_num;
+    let block_text = Arc::new(block.text);
+
+    let open_menu = {
+        let doc_id = Arc::clone(&doc_id);
+        let block_text = Arc::clone(&block_text);
+        let set_pending_capture = set_pending_capture.clone();
+        move |ev: MouseEvent| {
+            ev.prevent_default();
             let selected = web_sys::window()
                 .and_then(|w| w.get_selection().ok().flatten())
                 .map(|s| s.to_string())
@@ -203,48 +299,16 @@ fn make_capture_handler(
                 return;
             }
 
-            let req = CaptureWordRequest {
-                word: selected.clone(),
-                block_text: text.as_ref().to_string(),
-                doc_id: doc.as_ref().to_string(),
+            set_pending_capture.set(Some(PendingCapture {
+                word: selected,
+                block_text: block_text.clone(),
+                doc_id: doc_id.clone(),
                 page_num,
-            };
-            let args = to_value(&req).unwrap_or(JsValue::NULL);
-
-            match invoke("capture_word", args).await {
-                Ok(result) => {
-                    if let Ok(resp) = serde_wasm_bindgen::from_value::<CaptureWordResponse>(result)
-                    {
-                        if resp.success {
-                            set_word.set(Some(selected.clone()));
-                            // Clear after 2 seconds
-                            spawn_local(async move {
-                                gloo_timers::future::TimeoutFuture::new(2000).await;
-                                set_word.set(None);
-                            });
-                        }
-                    }
-                }
-                Err(_) => {}
-            }
-        });
-    }
-}
-
-fn render_block(
-    block: Block,
-    doc_id: Rc<String>,
-    set_captured: WriteSignal<Option<String>>,
-) -> AnyView {
-    // Add extra margin-top for paragraphs that start a new indented paragraph
-    let paragraph_indent = if block.starts_new_paragraph {
-        "text-indent: 1.5em;"
-    } else {
-        ""
+                x: ev.client_x(),
+                y: ev.client_y(),
+            }));
+        }
     };
-
-    let page_num = block.page_num;
-    let block_text = Rc::new(block.text);
 
     match block.role {
         BlockRole::Heading { level } => {
@@ -259,14 +323,10 @@ fn render_block(
                     "font-size: 1.1em; font-weight: bold; margin: 10px 0 8px 0; line-height: 1.3; cursor: text;"
                 }
             };
-            let handler = make_capture_handler(doc_id.clone(), block_text.clone(), page_num, set_captured);
             view! {
                 <div
                     style=style
-                    on:contextmenu=move |ev: MouseEvent| {
-                        ev.prevent_default();
-                        handler();
-                    }
+                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
                 >{block_text.as_str()}</div>
             }
             .into_any()
@@ -277,14 +337,10 @@ fn render_block(
                 "margin: 0 0 10px 0; line-height: 1.6; cursor: text; {}",
                 paragraph_indent
             );
-            let handler = make_capture_handler(doc_id.clone(), block_text.clone(), page_num, set_captured);
             view! {
                 <p
                     style=style
-                    on:contextmenu=move |ev: MouseEvent| {
-                        ev.prevent_default();
-                        handler();
-                    }
+                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
                 >{block_text.as_str()}</p>
             }
             .into_any()
@@ -296,14 +352,10 @@ fn render_block(
         }
 
         BlockRole::Footnote => {
-            let handler = make_capture_handler(doc_id.clone(), block_text.clone(), page_num, set_captured);
             view! {
                 <div
                     style="font-size: 0.85em; color: #666; border-top: 1px solid #ddd; padding-top: 5px; margin-top: 15px; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| {
-                        ev.prevent_default();
-                        handler();
-                    }
+                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
                 >
                     {block_text.as_str()}
                 </div>
@@ -311,14 +363,10 @@ fn render_block(
         }
 
         BlockRole::Caption => {
-            let handler = make_capture_handler(doc_id.clone(), block_text.clone(), page_num, set_captured);
             view! {
                 <p
                     style="font-style: italic; text-align: center; color: #555; margin: 10px 0; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| {
-                        ev.prevent_default();
-                        handler();
-                    }
+                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
                 >
                     {block_text.as_str()}
                 </p>
@@ -326,14 +374,10 @@ fn render_block(
         }
 
         BlockRole::Citation => {
-            let handler = make_capture_handler(doc_id.clone(), block_text.clone(), page_num, set_captured);
             view! {
                 <div
                     style="margin-left: 20px; margin-bottom: 8px; font-size: 0.9em; color: #444; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| {
-                        ev.prevent_default();
-                        handler();
-                    }
+                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
                 >
                     {block_text.as_str()}
                 </div>
@@ -341,14 +385,10 @@ fn render_block(
         }
 
         BlockRole::Author => {
-            let handler = make_capture_handler(doc_id.clone(), block_text.clone(), page_num, set_captured);
             view! {
                 <p
                     style="font-weight: bold; text-align: center; margin-bottom: 5px; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| {
-                        ev.prevent_default();
-                        handler();
-                    }
+                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
                 >
                     {block_text.as_str()}
                 </p>
@@ -357,14 +397,10 @@ fn render_block(
         }
 
         BlockRole::Abstract => {
-            let handler = make_capture_handler(doc_id.clone(), block_text.clone(), page_num, set_captured);
             view! {
                 <blockquote
                     style="font-style: italic; border-left: 3px solid #ccc; padding-left: 15px; margin: 15px 0; color: #555; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| {
-                        ev.prevent_default();
-                        handler();
-                    }
+                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
                 >
                     {block_text.as_str()}
                 </blockquote>
@@ -372,14 +408,10 @@ fn render_block(
         }
 
         BlockRole::Reference => {
-            let handler = make_capture_handler(doc_id.clone(), block_text.clone(), page_num, set_captured);
             view! {
                 <h3
                     style="margin: 20px 0 10px 0; border-bottom: 1px solid #ddd; padding-bottom: 5px; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| {
-                        ev.prevent_default();
-                        handler();
-                    }
+                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
                 >
                     {block_text.as_str()}
                 </h3>

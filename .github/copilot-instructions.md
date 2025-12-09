@@ -57,6 +57,7 @@ External Markdown (no goidev metadata) is imported leniently with synthetic page
 - Markdown sidecar: `goidev-core/src/markdown.rs` handles cache serialization with YAML frontmatter (`source_hash`) and HTML comment metadata (`<!-- goidev:page=N bbox=... -->`).
 - Tests: follow happy-path + one edge-case per feature; add fixtures under `goidev-core/tests/resources/`.
 - Public API: export from `goidev-core/src/lib.rs`; do not leak internal module details.
+- Avoid unnecessary `clone()`: favor borrowing (`&T`, `&str`, `as_ref`) and lifetimes over copying; only clone when ownership transfer is required or data leaves scope (e.g., async/tasks/UI signals).
 
 ## Cross-Component Communication
 
