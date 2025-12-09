@@ -1,6 +1,5 @@
 use goidev_core::dto::ReflowDocument;
 use goidev_core::reflow_engine::{Block, BlockRole};
-#[allow(unused_imports)]
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -11,7 +10,6 @@ use std::sync::Arc;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 
-/// Metadata for a page group
 struct PageGroup {
     pdf_page: u32,
     doc_page: Option<String>,
@@ -20,39 +18,28 @@ struct PageGroup {
 
 #[component]
 pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
-    // Signal for showing capture feedback
-    let (captured_word, set_captured_word) = signal(Option::<String>::None);
+    let (captured_word, set_captured_word) = signal(None::<String>);
     let (vocab_entries, set_vocab_entries) = signal(Vec::<VocabularyEntry>::new());
-    let (vocab_panel_open, set_vocab_panel_open) = signal(false);
-    let (pending_capture, set_pending_capture) = signal(Option::<PendingCapture>::None);
+    let (pending_capture, set_pending_capture) = signal(None::<PendingCapture>);
 
     let load_vocab = {
         let set_vocab_entries = set_vocab_entries;
         move || {
             spawn_local(async move {
-                if let Ok(result) = invoke("get_vocabulary", JsValue::NULL).await {
-                    if let Ok(entries) = serde_wasm_bindgen::from_value::<Vec<VocabularyEntry>>(result) {
-                        set_vocab_entries.set(entries);
-                    }
+                match invoke("get_vocabulary", JsValue::NULL).await {
+                    Ok(result) => match serde_wasm_bindgen::from_value::<Vec<VocabularyEntry>>(result) {
+                        Ok(entries) => set_vocab_entries.set(entries),
+                        Err(err) => web_sys::console::error_1(&JsValue::from_str(&format!("vocab deserialize error: {:?}", err))),
+                    },
+                    Err(err) => web_sys::console::error_1(&JsValue::from_str(&format!("get_vocabulary invoke error: {:?}", err))),
                 }
             });
         }
     };
 
-    let toggle_vocab_panel = {
-        let vocab_panel_open = vocab_panel_open;
-        let set_vocab_panel_open = set_vocab_panel_open;
-        let load_vocab = load_vocab;
-        move |_| {
-            let open = vocab_panel_open.get();
-            if !open {
-                load_vocab();
-            }
-            set_vocab_panel_open.set(!open);
-        }
-    };
+    // Load vocab on mount so the side panel is populated immediately
+    load_vocab();
 
-    // Group blocks by page, capturing doc_page_num from the first block that has it
     let pages: Vec<PageGroup> = {
         let mut map: BTreeMap<u32, PageGroup> = BTreeMap::new();
         for block in document.blocks {
@@ -61,8 +48,7 @@ pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
                 doc_page: None,
                 blocks: Vec::new(),
             });
-            // Capture doc_page_num from first block that has it
-            if entry.doc_page.is_none() && block.doc_page_num.is_some() {
+            if entry.doc_page.is_none() {
                 entry.doc_page = block.doc_page_num.clone();
             }
             entry.blocks.push(block);
@@ -70,49 +56,69 @@ pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
         map.into_values().collect()
     };
 
-    let doc_id = Arc::new(document.doc_id.clone());
+    let doc_id = Arc::new(document.doc_id);
 
     view! {
         <div class="reflow-viewer">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                 <h1>{document.title}</h1>
-                <button type="button" style="padding: 8px 16px; background: #007acc; color: white; border: none; border-radius: 6px; cursor: pointer;" on:click=toggle_vocab_panel>
-                    {move || if vocab_panel_open.get() { "Hide vocabulary" } else { "Vocabulary" }}
-                </button>
+                <span style="font-size: 0.95rem; color: #555;">{"Vocabulary"}</span>
             </div>
-            {move || {
-                if vocab_panel_open.get() {
+
+            <div style="display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start;">
+                <div class="pages">
+                    {pages.into_iter().map(|page_group| {
+                        let bg_style = if page_group.pdf_page % 2 != 0 {
+                            "background-color: #ffffff; color: #333333; padding: 20px; margin-bottom: 20px; position: relative; border: 1px solid #eee;"
+                        } else {
+                            "background-color: #f8f9fa; color: #333333; padding: 20px; margin-bottom: 20px; position: relative; border: 1px solid #eee;"
+                        };
+
+                        let page_label = match &page_group.doc_page {
+                            Some(doc_num) => format!("Page {}", doc_num),
+                            None => format!("Page {}", page_group.pdf_page),
+                        };
+
+                        view! {
+                            <div class="page-container" style=bg_style>
+                                <div class="page-number" style="position: absolute; top: 5px; right: 10px; color: #888; font-size: 0.8em; font-weight: bold;">
+                                    {page_label}
+                                </div>
+                                {page_group.blocks.into_iter().map(|block| {
+                                    render_block(block, doc_id.clone(), set_pending_capture)
+                                }).collect_view()}
+                            </div>
+                        }
+                    }).collect_view()}
+                </div>
+
+                {move || {
                     let entries = vocab_entries.get();
                     view! {
-                        <div class="vocab-panel" style="position: fixed; top: 90px; right: 20px; width: 340px; max-height: 70vh; overflow-y: auto; background: white; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 15px 40px rgba(0,0,0,0.15); padding: 16px; z-index: 1000;">
+                        <aside class="vocab-panel" style="background: white; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.12); padding: 16px; max-height: calc(100vh - 120px); overflow-y: auto; position: sticky; top: 70px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                                 <strong>Vocabulary</strong>
-                                <button type="button" style="background: none; border: none; color: #007acc; font-weight: 600; cursor: pointer;" on:click=move |_| set_vocab_panel_open.set(false)>{"Close"}</button>
                             </div>
                             {entries.into_iter().map(|entry| {
-                                let location = match (entry.source_doc.clone(), entry.page_num) {
+                                let location = match (entry.source_doc.as_ref(), entry.page_num) {
                                     (Some(doc), Some(page)) => format!("{} · page {}", doc, page),
-                                    (Some(doc), None) => doc,
+                                    (Some(doc), None) => doc.to_string(),
                                     (None, Some(page)) => format!("Page {}", page),
                                     (None, None) => "Unknown source".to_string(),
                                 };
                                 view! {
                                     <div style="border-bottom: 1px solid #f0f0f0; padding: 8px 0;">
                                         <div style="font-weight: 600; font-size: 1rem;">{entry.word.clone()}</div>
-                                        <div style="font-size: 0.9rem; color: #444;">{entry.base_form.clone()}{" · "}{entry.sentence.clone()}</div>
+                                        <div style="font-size: 0.9rem; color: #444;">{entry.base_form.clone()}" · "{entry.sentence.clone()}</div>
                                         <div style="font-size: 0.8rem; color: #777;">{location}</div>
                                     </div>
                                 }
                             }).collect_view()}
-                        </div>
+                        </aside>
                     }.into_any()
-                } else {
-                    view! {
-                        <div class="vocab-panel" style="position: fixed; top: 90px; right: 20px; width: 340px; max-height: 70vh; overflow-y: auto; background: white; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 15px 40px rgba(0,0,0,0.15); padding: 16px; z-index: 1000; display: none;">
-                        </div>
-                    }.into_any()
-                }
-            }}
+                }}
+            </div>
+
             {move || pending_capture.get().map(|pending| {
                 let set_pending_capture = set_pending_capture;
                 let set_captured_word = set_captured_word;
@@ -124,16 +130,8 @@ pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
                 let top = pending.y;
                 let left = pending.x;
                 view! {
-                    <div
-                        class="capture-menu-overlay"
-                        style="position: fixed; inset: 0; z-index: 1100;"
-                        on:click=move |_| set_pending_capture.set(None)
-                    >
-                        <div
-                            class="capture-menu"
-                            style=format!("position: fixed; top: {}px; left: {}px; background: white; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); padding: 8px; min-width: 160px;", top, left)
-                            on:click=move |ev| ev.stop_propagation()
-                        >
+                    <div class="capture-menu-overlay" style="position: fixed; inset: 0; z-index: 1100;" on:click=move |_| set_pending_capture.set(None)>
+                        <div class="capture-menu" style=format!("position: fixed; top: {}px; left: {}px; background: white; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); padding: 8px; min-width: 160px;", top, left) on:click=move |ev| ev.stop_propagation()>
                             <button
                                 type="button"
                                 style="width: 100%; padding: 8px 10px; background: #007acc; color: white; border: none; border-radius: 6px; cursor: pointer; margin-bottom: 6px;"
@@ -151,35 +149,27 @@ pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
                                             doc_id: selected_doc.as_ref().to_string(),
                                             page_num,
                                         };
-                                        let args = to_value(&req).unwrap_or(JsValue::NULL);
+                                        let args = to_value(&CaptureWordArgs { request: req }).unwrap_or(JsValue::NULL);
                                         match invoke("capture_word", args).await {
                                             Ok(result) => match serde_wasm_bindgen::from_value::<CaptureWordResponse>(result) {
                                                 Ok(resp) => {
                                                     if resp.success {
                                                         set_captured_word.set(Some(selected_word.clone()));
                                                         set_pending_capture.set(None);
-                                                        // refresh vocab list after capture
                                                         load_vocab();
                                                         spawn_local(async move {
                                                             gloo_timers::future::TimeoutFuture::new(2000).await;
                                                             set_captured_word.set(None);
                                                         });
                                                         return;
-                                                    } else {
-                                                        // Backend returned success=false; log error if present
-                                                        let msg = resp.error.unwrap_or_else(|| "capture returned success=false".to_string());
-                                                        web_sys::console::error_1(&JsValue::from_str(&format!("capture_word failed: {}", msg)));
                                                     }
+                                                    let msg = resp.error.unwrap_or_else(|| "capture failed (success=false)".to_string());
+                                                    web_sys::console::error_1(&JsValue::from_str(&format!("capture_word error: {}", msg)));
                                                 }
-                                                Err(err) => {
-                                                    web_sys::console::error_1(&JsValue::from_str(&format!("failed to deserialize capture response: {:?}", err)));
-                                                }
+                                                Err(err) => web_sys::console::error_1(&JsValue::from_str(&format!("capture_word deserialize error: {:?}", err))),
                                             },
-                                            Err(err) => {
-                                                web_sys::console::error_1(&JsValue::from_str(&format!("invoke capture_word error: {:?}", err)));
-                                            }
+                                            Err(err) => web_sys::console::error_1(&JsValue::from_str(&format!("capture_word invoke error: {:?}", err))),
                                         }
-                                        // On failure, just close the menu
                                         set_pending_capture.set(None);
                                     });
                                 }
@@ -193,47 +183,16 @@ pub fn ReflowViewer(document: ReflowDocument) -> impl IntoView {
                     </div>
                 }
             })}
-            // Capture feedback toast
+
             {move || captured_word.get().map(|word| view! {
                 <div class="capture-toast" style="position: fixed; bottom: 20px; right: 20px; background: #4CAF50; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000; animation: fadeIn 0.3s;">
                     {"✓ Captured: "}{word}
                 </div>
             })}
-            <div class="pages">
-                {pages.into_iter().map(|page_group| {
-                    let bg_style = if page_group.pdf_page % 2 != 0 {
-                        "background-color: #ffffff; color: #333333; padding: 20px; margin-bottom: 20px; position: relative; border: 1px solid #eee;"
-                    } else {
-                        "background-color: #f8f9fa; color: #333333; padding: 20px; margin-bottom: 20px; position: relative; border: 1px solid #eee;"
-                    };
-
-                    // Show doc page number if available, otherwise PDF page
-                    let page_label = match &page_group.doc_page {
-                        Some(doc_num) => format!("Page {}", doc_num),
-                        None => format!("Page {}", page_group.pdf_page),
-                    };
-
-                    view! {
-                        <div class="page-container" style=bg_style>
-                            <div class="page-number" style="position: absolute; top: 5px; right: 10px; color: #888; font-size: 0.8em; font-weight: bold;">
-                                {page_label}
-                            </div>
-                            {page_group.blocks.into_iter().map(|block| {
-                                render_block(
-                                    block,
-                                    doc_id.clone(),
-                                    set_pending_capture,
-                                )
-                            }).collect_view()}
-                        </div>
-                    }
-                }).collect_view()}
-            </div>
         </div>
     }
 }
 
-/// Render a block based on its role.
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], catch)]
@@ -246,6 +205,11 @@ struct CaptureWordRequest {
     block_text: String,
     doc_id: String,
     page_num: u32,
+}
+
+#[derive(Serialize)]
+struct CaptureWordArgs {
+    request: CaptureWordRequest,
 }
 
 #[derive(Deserialize)]
@@ -285,7 +249,6 @@ fn render_block(
     doc_id: Arc<String>,
     set_pending_capture: WriteSignal<Option<PendingCapture>>,
 ) -> AnyView {
-    // Add extra margin-top for paragraphs that start a new indented paragraph
     let paragraph_indent = if block.starts_new_paragraph {
         "text-indent: 1.5em;"
     } else {
@@ -300,21 +263,16 @@ fn render_block(
         let block_text = Arc::clone(&block_text);
         let set_pending_capture = set_pending_capture.clone();
         move |ev: MouseEvent| {
-            // 1. 現在の選択範囲を取得
             let selected = web_sys::window()
                 .and_then(|w| w.get_selection().ok().flatten())
                 .map(|s| s.to_string())
                 .map(|js| js.as_string().unwrap_or_default())
                 .unwrap_or_default();
 
-            // 2. 選択範囲が空（または空白のみ）の場合は、独自の処理をせず
-            //    return することで、ブラウザ標準の右クリックメニューを表示させる。
-            //    これにより「クリックが効かない」現象を防ぐ。
             if selected.trim().is_empty() {
                 return;
             }
 
-            // 3. 有効な選択がある場合のみ、デフォルト動作（標準メニュー）を無効化して自前のメニューを出す
             ev.prevent_default();
 
             set_pending_capture.set(Some(PendingCapture {
@@ -327,113 +285,26 @@ fn render_block(
             }));
         }
     };
-    
+
     match block.role {
         BlockRole::Heading { level } => {
             let style = match level {
-                1 => {
-                    "font-size: 1.5em; font-weight: bold; margin: 20px 0 15px 0; line-height: 1.3; cursor: text;"
-                }
-                2 => {
-                    "font-size: 1.25em; font-weight: bold; margin: 15px 0 10px 0; line-height: 1.3; cursor: text;"
-                }
-                _ => {
-                    "font-size: 1.1em; font-weight: bold; margin: 10px 0 8px 0; line-height: 1.3; cursor: text;"
-                }
+                1 => "font-size: 1.5em; font-weight: bold; margin: 20px 0 15px 0; line-height: 1.3; cursor: text;",
+                2 => "font-size: 1.25em; font-weight: bold; margin: 15px 0 10px 0; line-height: 1.3; cursor: text;",
+                _ => "font-size: 1.1em; font-weight: bold; margin: 10px 0 8px 0; line-height: 1.3; cursor: text;",
             };
-            view! {
-                <div
-                    style=style
-                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
-                >{block_text.as_str()}</div>
-            }
-            .into_any()
+            view! { <div style=style on:contextmenu=move |ev: MouseEvent| open_menu(ev)>{block_text.as_str()}</div> }.into_any()
         }
-
         BlockRole::Paragraph => {
-            let style = format!(
-                "margin: 0 0 10px 0; line-height: 1.6; cursor: text; {}",
-                paragraph_indent
-            );
-            view! {
-                <p
-                    style=style
-                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
-                >{block_text.as_str()}</p>
-            }
-            .into_any()
+            let style = format!("margin: 0 0 10px 0; line-height: 1.6; cursor: text; {}", paragraph_indent);
+            view! { <p style=style on:contextmenu=move |ev: MouseEvent| open_menu(ev)>{block_text.as_str()}</p> }.into_any()
         }
-
-        BlockRole::PageNumber | BlockRole::Header | BlockRole::Footer => {
-            // Skip header/footer/page numbers in reflow view (already shown)
-            view! { <span></span> }.into_any()
-        }
-
-        BlockRole::Footnote => {
-            view! {
-                <div
-                    style="font-size: 0.85em; color: #666; border-top: 1px solid #ddd; padding-top: 5px; margin-top: 15px; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
-                >
-                    {block_text.as_str()}
-                </div>
-            }.into_any()
-        }
-
-        BlockRole::Caption => {
-            view! {
-                <p
-                    style="font-style: italic; text-align: center; color: #555; margin: 10px 0; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
-                >
-                    {block_text.as_str()}
-                </p>
-            }.into_any()
-        }
-
-        BlockRole::Citation => {
-            view! {
-                <div
-                    style="margin-left: 20px; margin-bottom: 8px; font-size: 0.9em; color: #444; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
-                >
-                    {block_text.as_str()}
-                </div>
-            }.into_any()
-        }
-
-        BlockRole::Author => {
-            view! {
-                <p
-                    style="font-weight: bold; text-align: center; margin-bottom: 5px; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
-                >
-                    {block_text.as_str()}
-                </p>
-            }
-            .into_any()
-        }
-
-        BlockRole::Abstract => {
-            view! {
-                <blockquote
-                    style="font-style: italic; border-left: 3px solid #ccc; padding-left: 15px; margin: 15px 0; color: #555; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
-                >
-                    {block_text.as_str()}
-                </blockquote>
-            }.into_any()
-        }
-
-        BlockRole::Reference => {
-            view! {
-                <h3
-                    style="margin: 20px 0 10px 0; border-bottom: 1px solid #ddd; padding-bottom: 5px; cursor: text;"
-                    on:contextmenu=move |ev: MouseEvent| open_menu(ev)
-                >
-                    {block_text.as_str()}
-                </h3>
-            }.into_any()
-        }
+        BlockRole::PageNumber | BlockRole::Header | BlockRole::Footer => view! { <span></span> }.into_any(),
+        BlockRole::Footnote => view! { <div style="font-size: 0.85em; color: #666; border-top: 1px solid #ddd; padding-top: 5px; margin-top: 15px; cursor: text;" on:contextmenu=move |ev: MouseEvent| open_menu(ev)>{block_text.as_str()}</div> }.into_any(),
+        BlockRole::Caption => view! { <p style="font-style: italic; text-align: center; color: #555; margin: 10px 0; cursor: text;" on:contextmenu=move |ev: MouseEvent| open_menu(ev)>{block_text.as_str()}</p> }.into_any(),
+        BlockRole::Citation => view! { <div style="margin-left: 20px; margin-bottom: 8px; font-size: 0.9em; color: #444; cursor: text;" on:contextmenu=move |ev: MouseEvent| open_menu(ev)>{block_text.as_str()}</div> }.into_any(),
+        BlockRole::Author => view! { <p style="font-weight: bold; text-align: center; margin-bottom: 5px; cursor: text;" on:contextmenu=move |ev: MouseEvent| open_menu(ev)>{block_text.as_str()}</p> }.into_any(),
+        BlockRole::Abstract => view! { <blockquote style="font-style: italic; border-left: 3px solid #ccc; padding-left: 15px; margin: 15px 0; color: #555; cursor: text;" on:contextmenu=move |ev: MouseEvent| open_menu(ev)>{block_text.as_str()}</blockquote> }.into_any(),
+        BlockRole::Reference => view! { <h3 style="margin: 20px 0 10px 0; border-bottom: 1px solid #ddd; padding-bottom: 5px; cursor: text;" on:contextmenu=move |ev: MouseEvent| open_menu(ev)>{block_text.as_str()}</h3> }.into_any(),
     }
 }
