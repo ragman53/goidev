@@ -12,12 +12,12 @@ fn main() {
     } else {
         "goidev-core/tests/resources/test.pdf"
     };
-    
+
     // Check for flags
     let raw_mode = args.iter().any(|a| a == "--raw");
     let state_mode = args.iter().any(|a| a == "--state");
     let blocks_mode = args.iter().any(|a| a == "--blocks");
-    
+
     if raw_mode {
         debug_raw_pdf(path);
     } else if state_mode {
@@ -32,30 +32,34 @@ fn main() {
 /// Show reflowed blocks with new features
 fn debug_blocks(path: &str) {
     println!("Reflowed blocks for: {}\n", path);
-    
+
     let lines = parse_pdf(path).expect("Failed to parse PDF");
     let blocks = ReflowEngine::process(lines);
-    
+
     println!("Found {} blocks\n", blocks.len());
-    
+
     // Group blocks by role for summary
     let mut role_counts = std::collections::HashMap::new();
     for block in &blocks {
         *role_counts.entry(format!("{:?}", block.role)).or_insert(0) += 1;
     }
-    
+
     println!("Role distribution:");
     for (role, count) in &role_counts {
         println!("  {:20} : {}", role, count);
     }
     println!();
-    
+
     // Show first 30 blocks with details
     for (i, block) in blocks.iter().take(30).enumerate() {
         let text_preview: String = block.text.chars().take(60).collect();
         let doc_page = block.doc_page_num.as_deref().unwrap_or("-");
-        let indent = if block.starts_new_paragraph { "¶" } else { " " };
-        
+        let indent = if block.starts_new_paragraph {
+            "¶"
+        } else {
+            " "
+        };
+
         println!(
             "[{:3}] {} PDF={} Doc={:>3} | {:?}",
             i, indent, block.page_num, doc_page, block.role
@@ -66,11 +70,11 @@ fn debug_blocks(path: &str) {
 
 fn debug_parsed_pdf(path: &str) {
     println!("Parsing: {}", path);
-    
+
     match parse_pdf(path) {
         Ok(lines) => {
             println!("\nFound {} text lines\n", lines.len());
-            
+
             // Show all lines with their coordinates
             for (i, line) in lines.iter().take(50).enumerate() {
                 let text_preview: String = line.text.chars().take(50).collect();
@@ -79,12 +83,15 @@ fn debug_parsed_pdf(path: &str) {
                     i,
                     line.page_num,
                     line.bbox.y1,
-                    line.bbox.x1, line.bbox.y1, line.bbox.x2, line.bbox.y2,
+                    line.bbox.x1,
+                    line.bbox.y1,
+                    line.bbox.x2,
+                    line.bbox.y2,
                     line.font_size,
                     text_preview
                 );
             }
-            
+
             // Show page geometry
             if let Some(first) = lines.first() {
                 println!("\nPage geometry: {:?}", first.page_geometry);
@@ -98,21 +105,21 @@ fn debug_parsed_pdf(path: &str) {
 
 fn debug_raw_pdf(path: &str) {
     use lopdf::Document;
-    
+
     println!("Raw PDF operators for: {}\n", path);
-    
+
     let doc = Document::load(path).expect("Failed to load PDF");
     let pages = doc.get_pages();
-    
+
     // Just show first page
     if let Some((page_num, page_id)) = pages.into_iter().next() {
         println!("=== Page {} ===\n", page_num);
-        
+
         // Show MediaBox
         if let Ok((Some(_resources), _)) = doc.get_page_resources(page_id) {
             println!("Resources found");
         }
-        
+
         if let Ok(content_data) = doc.get_page_content(page_id) {
             if let Ok(content) = lopdf::content::Content::decode(&content_data) {
                 // Show first 100 operators
@@ -126,18 +133,18 @@ fn debug_raw_pdf(path: &str) {
 
 /// Debug with state tracking
 fn debug_with_state(path: &str) {
-    use lopdf::Document;
     use goidev_core::pdf_state::PdfState;
-    
+    use lopdf::Document;
+
     println!("State-tracked PDF parsing for: {}\n", path);
-    
+
     let doc = Document::load(path).expect("Failed to load PDF");
     let pages = doc.get_pages();
     let mut state = PdfState::new();
-    
+
     if let Some((page_num, page_id)) = pages.into_iter().next() {
         println!("=== Page {} ===\n", page_num);
-        
+
         if let Ok(content_data) = doc.get_page_content(page_id) {
             if let Ok(content) = lopdf::content::Content::decode(&content_data) {
                 let mut text_count = 0;
@@ -149,9 +156,16 @@ fn debug_with_state(path: &str) {
                             println!("[{:3}] BT - text matrix reset", i);
                         }
                         "Tm" => {
-                            println!("[{:3}] Found Tm with {} operands: {:?}", i, op.operands.len(), op.operands);
+                            println!(
+                                "[{:3}] Found Tm with {} operands: {:?}",
+                                i,
+                                op.operands.len(),
+                                op.operands
+                            );
                             if op.operands.len() >= 6 {
-                                let ops: Vec<f32> = op.operands.iter()
+                                let ops: Vec<f32> = op
+                                    .operands
+                                    .iter()
                                     .take(6)
                                     .filter_map(|o| {
                                         let result = o.as_f32();
@@ -165,8 +179,10 @@ fn debug_with_state(path: &str) {
                                 if ops.len() == 6 {
                                     state.tm(ops[0], ops[1], ops[2], ops[3], ops[4], ops[5]);
                                     let (x, y) = state.current_position();
-                                    println!("[{:3}] Tm [{:.1},{:.1},{:.1},{:.1},{:.1},{:.1}] => position ({:.1}, {:.1})",
-                                        i, ops[0], ops[1], ops[2], ops[3], ops[4], ops[5], x, y);
+                                    println!(
+                                        "[{:3}] Tm [{:.1},{:.1},{:.1},{:.1},{:.1},{:.1}] => position ({:.1}, {:.1})",
+                                        i, ops[0], ops[1], ops[2], ops[3], ops[4], ops[5], x, y
+                                    );
                                 }
                             }
                         }
@@ -179,8 +195,10 @@ fn debug_with_state(path: &str) {
                                         state.td_capital(dx, dy);
                                     }
                                     let (px, py) = state.current_position();
-                                    println!("[{:3}] {} [{:.1},{:.1}] => position ({:.1}, {:.1})",
-                                        i, op.operator, dx, dy, px, py);
+                                    println!(
+                                        "[{:3}] {} [{:.1},{:.1}] => position ({:.1}, {:.1})",
+                                        i, op.operator, dx, dy, px, py
+                                    );
                                 }
                             }
                         }
@@ -201,20 +219,24 @@ fn debug_with_state(path: &str) {
                         }
                         "cm" => {
                             if op.operands.len() >= 6 {
-                                let ops: Vec<f32> = op.operands.iter()
+                                let ops: Vec<f32> = op
+                                    .operands
+                                    .iter()
                                     .take(6)
                                     .filter_map(|o| o.as_f32().ok())
                                     .collect();
                                 if ops.len() == 6 {
                                     state.cm(ops[0], ops[1], ops[2], ops[3], ops[4], ops[5]);
-                                    println!("[{:3}] cm [{:.1},{:.1},{:.1},{:.1},{:.1},{:.1}]",
-                                        i, ops[0], ops[1], ops[2], ops[3], ops[4], ops[5]);
+                                    println!(
+                                        "[{:3}] cm [{:.1},{:.1},{:.1},{:.1},{:.1},{:.1}]",
+                                        i, ops[0], ops[1], ops[2], ops[3], ops[4], ops[5]
+                                    );
                                 }
                             }
                         }
                         _ => {}
                     }
-                    
+
                     if text_count >= 10 {
                         println!("\n... (stopped after 10 text operators)");
                         break;

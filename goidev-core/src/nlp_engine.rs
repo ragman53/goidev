@@ -78,6 +78,9 @@ mod tests {
         let block = "Dr. Smith went home. The quick brown fox jumps over the lazy dog.";
         let sent = sentence_for_word(block, "fox");
         assert!(sent.is_some());
-        assert_eq!(sent.unwrap(), "The quick brown fox jumps over the lazy dog.");
+        assert_eq!(
+            sent.unwrap(),
+            "The quick brown fox jumps over the lazy dog."
+        );
     }
 }

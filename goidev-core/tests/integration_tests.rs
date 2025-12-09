@@ -83,15 +83,16 @@ fn test_role_detection_works() {
     // Should have some paragraphs (not all Footer!)
     let para_count = role_counts.get("Paragraph").unwrap_or(&0);
     let footer_count = role_counts.get("Footer").unwrap_or(&0);
-    
+
     assert!(
         *para_count > 0,
         "Should detect some Paragraph blocks, but found none"
     );
-    
+
     assert!(
         *para_count > *footer_count,
         "Should have more paragraphs ({}) than footers ({})",
-        para_count, footer_count
+        para_count,
+        footer_count
     );
 }

@@ -1,11 +1,11 @@
 use goidev_core::dto::ReflowDocument;
-use goidev_core::nlp_engine;
-use goidev_core::storage_layer;
 use goidev_core::markdown::{
-    hash_file, is_cache_valid, load_markdown, save_markdown, sidecar_path, MarkdownMeta,
+    MarkdownMeta, hash_file, is_cache_valid, load_markdown, save_markdown, sidecar_path,
 };
+use goidev_core::nlp_engine;
 use goidev_core::pdf_parser::parse_pdf;
 use goidev_core::reflow_engine::ReflowEngine;
+use goidev_core::storage_layer;
 use std::path::Path;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -17,20 +17,20 @@ fn greet(name: &str) -> String {
 /// Open a document (PDF or Markdown).
 /// - For PDFs: check sidecar cache; if valid, load from cache; else parse, reflow, cache.
 /// - For Markdown: load directly.
-/// 
+///
 /// This runs synchronously on a blocking thread pool to avoid issues with panics.
 #[tauri::command]
 fn open_document(path: String) -> Result<ReflowDocument, String> {
     println!("[open_document] START: {}", path);
-    
+
     let p = Path::new(&path);
-    
+
     // Validate file exists
     if !p.exists() {
         println!("[open_document] ERROR: File not found");
         return Err(format!("File not found: {}", path));
     }
-    
+
     let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
     println!("[open_document] Extension: {}", ext);
 
@@ -47,7 +47,10 @@ fn open_document(path: String) -> Result<ReflowDocument, String> {
                 .and_then(|n| n.to_str())
                 .unwrap_or("Untitled")
                 .to_string();
-            println!("[open_document] Loaded {} blocks from markdown", blocks.len());
+            println!(
+                "[open_document] Loaded {} blocks from markdown",
+                blocks.len()
+            );
             (blocks, title)
         }
         "pdf" => {
@@ -62,23 +65,26 @@ fn open_document(path: String) -> Result<ReflowDocument, String> {
                     println!("[open_document] ERROR loading cache: {}", e);
                     format!("Failed to load cache: {}", e)
                 })?;
-                println!("[open_document] Loaded {} blocks from cache", cached_blocks.len());
+                println!(
+                    "[open_document] Loaded {} blocks from cache",
+                    cached_blocks.len()
+                );
                 cached_blocks
             } else {
                 // Cache miss: parse PDF, reflow, save sidecar
                 println!("[open_document] Cache miss - parsing PDF");
-                
+
                 let lines = match parse_pdf(&path) {
                     Ok(lines) => {
                         println!("[open_document] Parsed {} text lines", lines.len());
                         lines
-                    },
+                    }
                     Err(e) => {
                         println!("[open_document] ERROR parsing PDF: {}", e);
                         return Err(format!("Failed to parse PDF: {}", e));
                     }
                 };
-                
+
                 println!("[open_document] Processing lines into blocks...");
                 let fresh_blocks = ReflowEngine::process(lines);
                 println!("[open_document] Generated {} blocks", fresh_blocks.len());
@@ -87,10 +93,13 @@ fn open_document(path: String) -> Result<ReflowDocument, String> {
                 println!("[open_document] Computing hash and saving cache...");
                 let source_hash = hash_file(&path).ok();
                 let meta = MarkdownMeta { source_hash };
-                
+
                 match save_markdown(&fresh_blocks, &meta, &sidecar) {
                     Ok(_) => println!("[open_document] Saved cache to: {:?}", sidecar),
-                    Err(e) => eprintln!("[open_document] Warning: failed to write sidecar cache: {}", e),
+                    Err(e) => eprintln!(
+                        "[open_document] Warning: failed to write sidecar cache: {}",
+                        e
+                    ),
                 }
 
                 fresh_blocks
@@ -109,15 +118,29 @@ fn open_document(path: String) -> Result<ReflowDocument, String> {
         }
     };
 
-    println!("[open_document] Creating ReflowDocument with {} blocks", blocks.len());
+    println!(
+        "[open_document] Creating ReflowDocument with {} blocks",
+        blocks.len()
+    );
     let doc = ReflowDocument {
         doc_id: uuid::Uuid::new_v4().to_string(),
         title,
         blocks,
     };
-    
+
     println!("[open_document] SUCCESS - returning document");
     Ok(doc)
+}
+
+fn vocabulary_db_path() -> std::path::PathBuf {
+    if let Some(mut dir) = dirs::data_local_dir() {
+        dir.push("goidev");
+        std::fs::create_dir_all(&dir).ok();
+        dir.push("vocab.db");
+        dir
+    } else {
+        std::path::PathBuf::from("./goidev_vocab.db")
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -138,7 +161,10 @@ struct CaptureWordResponse {
 /// Capture a selected word from the UI, extract sentence context and base form, and persist to SQLite.
 #[tauri::command]
 fn capture_word(request: CaptureWordRequest) -> Result<CaptureWordResponse, String> {
-    println!("[capture_word] request: {} (doc {}, page {})", request.word, request.doc_id, request.page_num);
+    println!(
+        "[capture_word] request: {} (doc {}, page {})",
+        request.word, request.doc_id, request.page_num
+    );
 
     // Extract sentence context
     let sentence = nlp_engine::sentence_for_word(&request.block_text, &request.word)
@@ -147,16 +173,7 @@ fn capture_word(request: CaptureWordRequest) -> Result<CaptureWordResponse, Stri
     // Base-form (stem) extraction
     let base_form = nlp_engine::get_base_form(&request.word);
 
-    // Determine DB path under platform data dir: {data_dir}/goidev/vocab.db
-    let db_path = if let Some(mut dir) = dirs::data_local_dir() {
-        dir.push("goidev");
-        std::fs::create_dir_all(&dir).ok();
-        dir.push("vocab.db");
-        dir
-    } else {
-        // Fallback: local file
-        std::path::PathBuf::from("./goidev_vocab.db")
-    };
+    let db_path = vocabulary_db_path();
 
     // Open / initialize DB
     let conn = match storage_layer::init_db(db_path.to_str().unwrap_or("./goidev_vocab.db")) {
@@ -164,7 +181,11 @@ fn capture_word(request: CaptureWordRequest) -> Result<CaptureWordResponse, Stri
         Err(e) => {
             let msg = format!("failed to open db: {}", e);
             println!("[capture_word] {}", msg);
-            return Ok(CaptureWordResponse { success: false, entry: None, error: Some(msg) });
+            return Ok(CaptureWordResponse {
+                success: false,
+                entry: None,
+                error: Some(msg),
+            });
         }
     };
 
@@ -183,13 +204,29 @@ fn capture_word(request: CaptureWordRequest) -> Result<CaptureWordResponse, Stri
     };
 
     match storage_layer::save_word(&conn, entry) {
-        Ok(saved) => Ok(CaptureWordResponse { success: true, entry: Some(saved), error: None }),
+        Ok(saved) => Ok(CaptureWordResponse {
+            success: true,
+            entry: Some(saved),
+            error: None,
+        }),
         Err(e) => {
             let msg = format!("failed to save word: {}", e);
             println!("[capture_word] {}", msg);
-            Ok(CaptureWordResponse { success: false, entry: None, error: Some(msg) })
+            Ok(CaptureWordResponse {
+                success: false,
+                entry: None,
+                error: Some(msg),
+            })
         }
     }
+}
+
+#[tauri::command]
+fn get_vocabulary() -> Result<Vec<storage_layer::WordEntry>, String> {
+    let db_path = vocabulary_db_path();
+    let conn = storage_layer::init_db(db_path.to_str().unwrap_or("./goidev_vocab.db"))
+        .map_err(|e| format!("failed to open db: {}", e))?;
+    storage_layer::get_vocabulary(&conn).map_err(|e| format!("failed to load vocabulary: {}", e))
 }
 
 /// Explicitly save current document blocks to a Markdown file.
@@ -221,7 +258,8 @@ pub fn run() {
             open_document,
             save_document_markdown,
             select_file,
-            capture_word
+            capture_word,
+            get_vocabulary
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

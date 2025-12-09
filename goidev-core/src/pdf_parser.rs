@@ -97,7 +97,10 @@ fn extract_page_geometry(doc: &Document, page_id: ObjectId) -> PageGeometry {
 }
 
 /// Recursively search for MediaBox in page dictionary or parent.
-fn get_media_box<'a>(doc: &'a Document, page_dict: &'a lopdf::Dictionary) -> Option<&'a Vec<Object>> {
+fn get_media_box<'a>(
+    doc: &'a Document,
+    page_dict: &'a lopdf::Dictionary,
+) -> Option<&'a Vec<Object>> {
     // Check for MediaBox on this page
     if let Ok(media_box) = page_dict.get(b"MediaBox") {
         match media_box {
@@ -143,7 +146,7 @@ pub fn parse_pdf(path: &str) -> Result<Vec<TextLine>, String> {
     for (page_num, page_id) in doc.get_pages() {
         // Reset state for each new page
         state.reset_for_page();
-        
+
         // Extract page geometry from MediaBox
         let page_geometry = extract_page_geometry(&doc, page_id);
 

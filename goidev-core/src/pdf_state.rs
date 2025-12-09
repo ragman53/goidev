@@ -80,9 +80,7 @@ impl PdfState {
 
     /// Save graphics state (q operator)
     pub fn save_graphics_state(&mut self) {
-        self.gs_stack.push(GraphicsState {
-            ctm: self.ctm,
-        });
+        self.gs_stack.push(GraphicsState { ctm: self.ctm });
     }
 
     /// Restore graphics state (Q operator)

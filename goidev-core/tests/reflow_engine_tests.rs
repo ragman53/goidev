@@ -39,7 +39,7 @@ fn test_group_lines_into_paragraph() {
             text: "Hello ".to_string(),
             bbox: BBox {
                 x1: 10.0,
-                y1: 400.0,  // Middle of page
+                y1: 400.0, // Middle of page
                 x2: 50.0,
                 y2: 412.0,
             },
@@ -74,7 +74,7 @@ fn test_detect_heading() {
             text: "Chapter 1".to_string(),
             bbox: BBox {
                 x1: 10.0,
-                y1: 500.0,  // Middle of page
+                y1: 500.0, // Middle of page
                 x2: 100.0,
                 y2: 524.0,
             },
@@ -226,7 +226,11 @@ fn test_detect_references_section() {
 
     let blocks = ReflowEngine::process(lines);
     // "References" header triggers Reference role
-    assert!(blocks.iter().any(|b| b.role == BlockRole::Reference && b.text.contains("References")));
+    assert!(
+        blocks
+            .iter()
+            .any(|b| b.role == BlockRole::Reference && b.text.contains("References"))
+    );
     // Should have Citation entries (may be merged or separate)
     assert!(blocks.iter().any(|b| b.role == BlockRole::Citation));
 }
@@ -247,7 +251,12 @@ fn test_detect_bibliography_section() {
 #[test]
 fn test_citation_pattern_in_body() {
     // Citation pattern should be detected even in body
-    let lines = vec![make_line("[1] Author, A. Some title. 2020.", 400.0, 10.0, 1)];
+    let lines = vec![make_line(
+        "[1] Author, A. Some title. 2020.",
+        400.0,
+        10.0,
+        1,
+    )];
 
     let blocks = ReflowEngine::process(lines);
     assert_eq!(blocks.len(), 1);
@@ -257,12 +266,12 @@ fn test_citation_pattern_in_body() {
 #[test]
 fn test_mixed_content_classification() {
     let lines = vec![
-        make_line("42", 760.0, 10.0, 1),                             // Header page number
-        make_line("Introduction", 700.0, 18.0, 1),                   // Heading
-        make_line("This paper presents...", 650.0, 12.0, 1),         // Paragraph
-        make_line("Figure 1: Overview", 400.0, 10.0, 1),             // Caption
-        make_line("1. See appendix for details.", 50.0, 9.0, 1),     // Footnote
-        make_line("Page 1 of 10", 30.0, 10.0, 1),                    // Footer page number
+        make_line("42", 760.0, 10.0, 1),           // Header page number
+        make_line("Introduction", 700.0, 18.0, 1), // Heading
+        make_line("This paper presents...", 650.0, 12.0, 1), // Paragraph
+        make_line("Figure 1: Overview", 400.0, 10.0, 1), // Caption
+        make_line("1. See appendix for details.", 50.0, 9.0, 1), // Footnote
+        make_line("Page 1 of 10", 30.0, 10.0, 1),  // Footer page number
     ];
 
     let blocks = ReflowEngine::process(lines);

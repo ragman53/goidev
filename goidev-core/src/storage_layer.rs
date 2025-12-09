@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, Result};
+use rusqlite::{Connection, Result, params};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -52,7 +52,11 @@ fn now_ts() -> i64 {
 }
 
 pub fn save_word(conn: &Connection, mut entry: WordEntry) -> Result<WordEntry> {
-    let created_at = if entry.created_at == 0 { now_ts() } else { entry.created_at };
+    let created_at = if entry.created_at == 0 {
+        now_ts()
+    } else {
+        entry.created_at
+    };
     conn.execute(
         "INSERT INTO words (word, base_form, sentence, source_doc, page_num, created_at, review_count, next_review, ease_factor)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
@@ -129,7 +133,13 @@ pub fn get_by_base_form(conn: &Connection, base: &str) -> Result<Vec<WordEntry>>
     Ok(out)
 }
 
-pub fn update_review(conn: &Connection, id: i64, next_review: Option<i64>, review_count: u32, ease_factor: f32) -> Result<()> {
+pub fn update_review(
+    conn: &Connection,
+    id: i64,
+    next_review: Option<i64>,
+    review_count: u32,
+    ease_factor: f32,
+) -> Result<()> {
     conn.execute(
         "UPDATE words SET next_review = ?1, review_count = ?2, ease_factor = ?3 WHERE id = ?4",
         params![next_review, review_count as i64, ease_factor, id],

@@ -99,34 +99,18 @@ fn write_block(out: &mut String, block: &Block) {
         BlockRole::Heading { level: 1 } | BlockRole::Reference => {
             out.push_str(&format!("# {}\n\n", block.text.trim()))
         }
-        BlockRole::Heading { level: 2 } => {
-            out.push_str(&format!("## {}\n\n", block.text.trim()))
-        }
-        BlockRole::Heading { level: _ } => {
-            out.push_str(&format!("### {}\n\n", block.text.trim()))
-        }
+        BlockRole::Heading { level: 2 } => out.push_str(&format!("## {}\n\n", block.text.trim())),
+        BlockRole::Heading { level: _ } => out.push_str(&format!("### {}\n\n", block.text.trim())),
         BlockRole::PageNumber | BlockRole::Header | BlockRole::Footer => {
             // Skip rendering these in output (they're metadata only)
             out.push_str(&format!("<!-- {} -->\n\n", block.text.trim()))
         }
-        BlockRole::Footnote => {
-            out.push_str(&format!("> [^note]: {}\n\n", block.text.trim()))
-        }
-        BlockRole::Caption => {
-            out.push_str(&format!("*{}*\n\n", block.text.trim()))
-        }
-        BlockRole::Citation => {
-            out.push_str(&format!("- {}\n\n", block.text.trim()))
-        }
-        BlockRole::Author => {
-            out.push_str(&format!("**{}**\n\n", block.text.trim()))
-        }
-        BlockRole::Abstract => {
-            out.push_str(&format!("> {}\n\n", block.text.trim()))
-        }
-        BlockRole::Paragraph => {
-            out.push_str(&format!("{}\n\n", block.text.trim()))
-        }
+        BlockRole::Footnote => out.push_str(&format!("> [^note]: {}\n\n", block.text.trim())),
+        BlockRole::Caption => out.push_str(&format!("*{}*\n\n", block.text.trim())),
+        BlockRole::Citation => out.push_str(&format!("- {}\n\n", block.text.trim())),
+        BlockRole::Author => out.push_str(&format!("**{}**\n\n", block.text.trim())),
+        BlockRole::Abstract => out.push_str(&format!("> {}\n\n", block.text.trim())),
+        BlockRole::Paragraph => out.push_str(&format!("{}\n\n", block.text.trim())),
     }
 }
 
@@ -274,7 +258,9 @@ impl ParseState {
             b
         });
         // Priority: pending_role from metadata > current_role from element > default_role
-        let role = self.pending_role.take()
+        let role = self
+            .pending_role
+            .take()
             .or_else(|| self.current_role.take())
             .unwrap_or(default_role);
         self.blocks.push(Block {
@@ -377,29 +363,30 @@ pub fn hash_file<P: AsRef<Path>>(path: P) -> io::Result<String> {
 /// e.g., `C:\path\to\doc.pdf` → `{cache_dir}/goidev/{hash_of_path}.goidev.md`
 pub fn sidecar_path<P: AsRef<Path>>(source: P) -> std::path::PathBuf {
     use sha2::{Digest, Sha256};
-    
+
     // Get cache directory (platform-specific)
     let cache_dir = dirs::cache_dir()
         .or_else(|| dirs::data_local_dir())
         .unwrap_or_else(|| std::path::PathBuf::from("."));
-    
+
     let goidev_cache = cache_dir.join("goidev").join("cache");
-    
+
     // Create cache directory if it doesn't exist
     let _ = std::fs::create_dir_all(&goidev_cache);
-    
+
     // Hash the source path to create a unique filename
     let source_path = source.as_ref().to_string_lossy();
     let mut hasher = Sha256::new();
     hasher.update(source_path.as_bytes());
     let path_hash = format!("{:x}", hasher.finalize());
-    
+
     // Use first 16 chars of hash + original filename for readability
-    let file_name = source.as_ref()
+    let file_name = source
+        .as_ref()
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("document");
-    
+
     let cache_name = format!("{}_{}.goidev.md", &path_hash[..16], file_name);
     goidev_cache.join(cache_name)
 }

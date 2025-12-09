@@ -70,12 +70,17 @@ pub fn App() -> impl IntoView {
             set_loading_state.set(LoadingState::Loading);
             set_status_msg.set(format!("Opening {}...", file_path));
 
-            let args = serde_wasm_bindgen::to_value(&OpenDocumentArgs { path: &file_path }).unwrap();
+            let args =
+                serde_wasm_bindgen::to_value(&OpenDocumentArgs { path: &file_path }).unwrap();
 
             match invoke("open_document", args).await {
                 Ok(val) => match serde_wasm_bindgen::from_value::<ReflowDocument>(val) {
                     Ok(doc) => {
-                        set_status_msg.set(format!("Loaded: {} ({} blocks)", doc.title, doc.blocks.len()));
+                        set_status_msg.set(format!(
+                            "Loaded: {} ({} blocks)",
+                            doc.title,
+                            doc.blocks.len()
+                        ));
                         set_document.set(Some(doc));
                         set_loading_state.set(LoadingState::Ready);
                     }
@@ -128,7 +133,7 @@ pub fn App() -> impl IntoView {
             };
 
             let options_js = serde_wasm_bindgen::to_value(&options).unwrap();
-            
+
             match dialog_open(options_js).await {
                 Ok(result) => {
                     // Result can be a string (single file) or null (cancelled)
@@ -174,7 +179,7 @@ pub fn App() -> impl IntoView {
                         }}
                     </button>
                 </form>
-                
+
                 <button
                     class="browse-button"
                     on:click=browse_file

@@ -1,6 +1,6 @@
 //! Tests for markdown serialization/deserialization.
 
-use goidev_core::markdown::{blocks_to_markdown, markdown_to_blocks, MarkdownMeta};
+use goidev_core::markdown::{MarkdownMeta, blocks_to_markdown, markdown_to_blocks};
 use goidev_core::pdf_parser::BBox;
 use goidev_core::reflow_engine::{Block, BlockRole};
 
